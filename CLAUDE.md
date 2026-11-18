@@ -1,0 +1,33 @@
+# metadev
+
+Source of the `metadev` Claude Code plugin. This repo is public. The marketplace manifest is `.claude-plugin/marketplace.json`; the plugin is `plugins/metadev/`.
+
+## Rules for changing the plugin
+
+- **Nothing about a specific project, client or person goes in this repo.** No product names, no personal names other than the author credit, no domains, account identifiers, network details or dated incidents. The person the team works for is "the owner". Facts about a product belong in that product's own `knowledge/foundations/`.
+- **Three kinds of knowledge, kept apart.**
+  - *Techniques* are skills named by situation (`schema-migration`, `test-planning`) with five sections in this order: Required foundations, Required context, Approach, Done means, Anti-patterns. Apply the swap test: every sentence must hold on a different product.
+  - *Foundations* are declarative, dated facts about tools, in `plugins/metadev/skills/foundations/references/`. State limits and known problems. Change "Last validated" only for claims actually checked, and say how.
+  - *Context* is never stored here.
+- **Agent files are contracts**: what the role owns, which foundations and context it requires, what done means, what it returns. About 70 lines at most.
+- **Preloaded skills stay short.** `team-standards` and the `foundations` index are injected in full into every agent.
+- Do not reference skills, tools or plugins that are not in this repo, except under "Works well with" in the plugin README.
+
+## Checking a change
+
+```bash
+claude plugin validate .
+claude plugin validate plugins/metadev
+claude --plugin-dir plugins/metadev        # try it in a session without installing
+```
+
+The commit guard (`plugins/metadev/scripts/guard-commit.sh`) is tested by piping a PreToolUse payload into it from a scratch git repo:
+
+```bash
+jq -n --arg d "$PWD" '{tool_name:"Bash",cwd:$d,tool_input:{command:"git add .env && git commit -m x"}}' \
+  | bash plugins/metadev/scripts/guard-commit.sh; echo $?     # expect 2
+```
+
+## Releasing
+
+Bump `version` in `plugins/metadev/.claude-plugin/plugin.json` and the version line in `README.md`, then push to `main`. Installed copies pick the change up with `claude plugin update metadev@metadev`.

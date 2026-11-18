@@ -7,15 +7,30 @@
 set -uo pipefail
 
 input=$(cat)
-command -v jq >/dev/null 2>&1 || exit 0
+if ! command -v jq >/dev/null 2>&1; then
+  # Without jq the command cannot be read. Refuse anything that mentions a
+  # commit rather than let it through unchecked.
+  if [[ "$input" == *commit* ]]; then
+    echo "Commit blocked by the metadev commit guard: jq is not installed, so the commit cannot be checked. Install jq." >&2
+    exit 2
+  fi
+  exit 0
+fi
 
-cmd=$(jq -r '.tool_input.command // empty' <<<"$input" 2>/dev/null) || exit 0
-cwd=$(jq -r '.cwd // empty' <<<"$input" 2>/dev/null) || exit 0
+cmd=$(jq -r '.tool_input.command // empty' <<<"$input" 2>/dev/null) || cmd=""
+cwd=$(jq -r '.cwd // empty' <<<"$input" 2>/dev/null) || cwd=""
+[[ -n "$cmd" ]] || exit 0
 
 # Does the command run git commit anywhere (including `git -C dir commit`,
 # `/usr/bin/git commit`, `sh -c "git commit"`)? If not, nothing to do.
 any_commit='(^|[^[:alnum:]_.-])git([[:space:]]+-[^[:space:]]+([[:space:]]+[^-[:space:]][^[:space:]]*)?)*[[:space:]]+commit([[:space:]]|$)'
-grep -Eq "$any_commit" <<<"$cmd" || exit 0
+# Detect on a normalised copy, so that quoting, backslashes and line
+# continuations (`"git" commit`, `g\it commit`, `git \<newline> commit`) do not
+# hide the commit. The strict shape check below runs on the original text and
+# refuses those forms.
+norm=${cmd//\\$'\n'/ }
+norm=${norm//[\'\"\\]/}
+grep -Eq "$any_commit" <<<"$norm" || exit 0
 
 block() { echo "Commit blocked by the metadev commit guard." >&2; echo "$1" >&2; exit 2; }
 
@@ -64,13 +79,17 @@ fi
 cd "$cwd" || block "Cannot enter $cwd to check the staged changes."
 git rev-parse --is-inside-work-tree >/dev/null 2>&1 || exit 0
 
+# Read the diff with options that user or repository configuration cannot
+# change: no colour, no external diff or textconv filters, no path quoting.
+gd() { git -c core.quotePath=false -c color.ui=never diff --no-color --no-ext-diff --no-textconv "$@"; }
+
 # `git commit -a` / `-am` stages tracked modifications at commit time.
 if grep -Eq -- '[[:space:]]-[a-zA-Z]*a[a-zA-Z]*([[:space:]]|$)|--all' <<<"$first_line"; then
-  files=$( { git diff --cached --name-only; git diff --name-only; } | sort -u )
-  diff=$( { git diff --cached -U0; git diff -U0; } )
+  files=$( { gd --cached --name-only -z; gd --name-only -z; } | tr '\0' '\n' | sort -u )
+  diff=$( { gd --cached -U0; gd -U0; } )
 else
-  files=$(git diff --cached --name-only)
-  diff=$(git diff --cached -U0)
+  files=$(gd --cached --name-only -z | tr '\0' '\n')
+  diff=$(gd --cached -U0)
 fi
 
 problems=""
@@ -83,7 +102,7 @@ fi
 
 # 2. Secret-shaped strings on added lines.
 patterns='-----BEGIN [A-Z ]*PRIVATE KEY-----|AKIA[0-9A-Z]{16}|sk-ant-[A-Za-z0-9_-]{20,}|sk-(proj-)?[A-Za-z0-9]{32,}|gh[pousr]_[A-Za-z0-9]{36,}|github_pat_[A-Za-z0-9_]{40,}|xox[baprs]-[A-Za-z0-9-]{20,}|sk_live_[A-Za-z0-9]{20,}|rk_live_[A-Za-z0-9]{20,}|AIza[0-9A-Za-z_-]{35}|eyJ[A-Za-z0-9_-]{20,}\.eyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}'
-hits=$(grep -E '^\+[^+]' <<<"$diff" | grep -Eo -- "$patterns" | sort -u | head -5 || true)
+hits=$(grep -E '^\+' <<<"$diff" | grep -Ev '^\+\+\+ ' | grep -Eo -- "$patterns" | sort -u | head -5 || true)
 if [[ -n "$hits" ]]; then
   # Show only a prefix so the secret is not echoed back in full.
   problems+=$'Added lines contain what look like secrets:\n'"$(cut -c1-12 <<<"$hits" | sed 's/$/.../; s/^/  /')"$'\n'
