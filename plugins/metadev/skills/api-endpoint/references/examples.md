@@ -82,7 +82,8 @@ async function updateClient(id: string, data: Partial<Client>, expectedVersion: 
     .select()
     .single();
 
-  if (!updated) {
+  // With no matching row (the version moved on), .single() returns an error and no data.
+  if (error || !updated) {
     throw new ConflictError('Client was modified by another request. Please refresh and try again.');
   }
 

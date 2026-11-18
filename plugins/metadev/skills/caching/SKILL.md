@@ -41,7 +41,9 @@ If the project has no cache store yet, choosing one is an architecture decision:
      if (cached) return JSON.parse(cached);
 
      // 2. Cache miss -- fetch from database
-     const client = await db.from('clients').select('*').eq('id', id).single();
+     // .single() returns an error, not an empty result, when no row matches. Never cache an error.
+     const { data: client, error } = await db.from('clients').select('*').eq('id', id).single();
+     if (error) throw error;
 
      // 3. Populate cache with TTL
      await cache.set(`client:${id}`, JSON.stringify(client), { ex: 300 }); // 5 min TTL
@@ -64,7 +66,8 @@ If the project has no cache store yet, choosing one is an architecture decision:
    ```typescript
    async function updateClient(id: string, data: Partial<Client>) {
      // 1. Update database
-     const client = await db.from('clients').update(data).eq('id', id).select().single();
+     const { data: client, error } = await db.from('clients').update(data).eq('id', id).select().single();
+     if (error) throw error;   // do not invalidate for a write that did not happen
 
      // 2. Invalidate cache
      await cache.del(`client:${id}`);
