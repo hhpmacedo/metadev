@@ -80,11 +80,13 @@ fi
 [[ -n "$cwd" && -d "$cwd" ]] || block "The working directory is unknown, so the staged changes cannot be checked."
 cd "$cwd" || block "Cannot enter $cwd to check the staged changes."
 git rev-parse --is-inside-work-tree >/dev/null 2>&1 || exit 0
+# git reports paths relative to the top of the repository; read them from there.
+cd "$(git rev-parse --show-toplevel)" || block "Cannot enter the top of the repository to check the staged changes."
 
 # What this commit would take: the staged files, plus tracked modifications when
 # the commit uses -a. The content is read from the index or the working tree
 # and scanned whole, so nothing depends on how a diff is rendered.
-names() { git -c core.quotePath=false diff --no-ext-diff --name-only -z --diff-filter=ACMR "$@"; }
+names() { git -c core.quotePath=false diff --no-ext-diff --name-only -z --diff-filter=d "$@"; }
 with_all=0
 grep -Eq -- '[[:space:]]-[a-zA-Z]*a[a-zA-Z]*([[:space:]]|$)|--all' <<<"$first_line" && with_all=1
 
@@ -100,7 +102,7 @@ while IFS= read -r -d '' path; do
 done < <(names --cached)
 if [[ "$with_all" -eq 1 ]]; then
   while IFS= read -r -d '' path; do
-    [[ -f "$path" ]] && check "$path" < "$path"
+    if [[ -f "$path" ]]; then check "$path" < "$path"; elif [[ -e "$path" || -L "$path" ]]; then problems+="  could not read $path to check it"$'\n'; fi
   done < <(names)
 fi
 

@@ -35,7 +35,9 @@ Commits that arrive from a remote are not flagged; they are already published.
 
 **Clearing a false positive.** The block is one file per repository under `~/.local/state/metadev-guard/` (or `$XDG_STATE_HOME/metadev-guard/`), named `flag.<number>`, listing the flagged commits. If a flagged commit is a deliberate fixture, the owner deletes that file. The guard does not tell agents this.
 
-**Limits.** It needs `jq` or `python3` to read the command; with neither, it refuses git commands and says so. It only sees commands run through Claude Code's shell tool. A commit and a push hidden in the same command, written so that layer 1 does not recognise the commit, would get through. Files over 5 MB are not scanned. A real `pre-push` hook in the repository, or secret scanning on the remote, is still worth having.
+**A commit that was pushed in the same command.** If a commit is made and pushed within one command in a way layer 1 does not recognise, it cannot be stopped. Layer 2 still scans it and reports it as already on a remote, so that the secret gets rotated. Only commits made under your own git email are reported this way; other people's commits that you fetch are ignored.
+
+**Limits.** It needs `jq` or `python3` to read the command; with neither, it refuses git commands and says so. It only sees commands run through Claude Code's shell tool, and only the repository the command started in: a command that changes directory into another repository and commits there is not checked. The push block works by refusing commands that mention a push, so a push spelled through a git alias is not blocked. Files over 50 MB and anything beyond the newest 500 commits from one command are not scanned; the guard says so when that happens. A real `pre-push` hook in the repository, or secret scanning on the remote, is still worth having.
 
 ## Three kinds of knowledge
 

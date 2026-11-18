@@ -24,7 +24,7 @@ Then, from any project repo:
 
 ## Status
 
-Version 2.2.0. The tool foundations under `plugins/metadev/skills/foundations/references/` were carried over from older material and are marked as not re-validated; check a claim before depending on it. The `deliver` workflow has not yet been exercised on a full mandate.
+Version 2.2.1. The tool foundations under `plugins/metadev/skills/foundations/references/` were carried over from older material and are marked as not re-validated; check a claim before depending on it. The `deliver` workflow has not yet been exercised on a full mandate.
 
 The knowledge structure follows [Knowledge-as-Code](https://github.com/hhpmacedo/kac-framework).
 

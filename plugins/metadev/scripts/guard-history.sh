@@ -47,7 +47,9 @@ PreToolUse)
   find "$state" -maxdepth 1 -name 'snap.*' -mmin +120 -delete 2>/dev/null
 
   # Snapshot: repository path, then every commit the branches and HEAD point to.
-  { printf '%s\n' "$top"; git rev-parse -q --verify HEAD 2>/dev/null; git for-each-ref --format='%(objectname)' refs/heads 2>/dev/null; } > "$snap" 2>/dev/null
+  # Remote-tracking refs are recorded too, so that a commit made and pushed
+  # within one command is still recognised as new afterwards.
+  { printf '%s\n' "$top"; git rev-parse -q --verify HEAD 2>/dev/null; git for-each-ref --format='%(objectname)' refs/heads refs/remotes 2>/dev/null; } > "$snap" 2>/dev/null
 
   # Refuse anything that mentions a push while a flagged commit is unpushed.
   if [[ -s "$flag" ]]; then
@@ -80,16 +82,27 @@ PostToolUse)
   git rev-parse --is-inside-work-tree >/dev/null 2>&1 || exit 0
   flag="$state/flag.$(repo_key "$top")"
 
-  # Commits that are new since the snapshot and not on a remote.
+  # Every commit that is new since the snapshot, whether or not it has been
+  # pushed in the meantime.
   exclude=()
   for sha in "${before[@]}"; do
     git cat-file -e "$sha^{commit}" 2>/dev/null && exclude+=("^$sha")
   done
-  total=$(unpushed_commits "${exclude[@]}" | wc -l)
-  mapfile -t fresh < <(unpushed_commits "${exclude[@]}" | head -n 50)
+  new_commits() { git rev-list "${exclude[@]}" HEAD --branches --remotes 2>/dev/null; }
+  total=$(new_commits | wc -l)
+  mapfile -t fresh < <(new_commits | head -n 500)
+  unpushed=$(unpushed_commits)
+  me=$(git config user.email 2>/dev/null || true)
 
-  findings=""
+  findings=""; published=""; notes=""
   for sha in "${fresh[@]}"; do
+    pushed=0
+    if ! grep -qx -- "$sha" <<<"$unpushed"; then
+      # Already on a remote. Only this user's own commits are of interest:
+      # other people's commits that were fetched are not this session's doing.
+      pushed=1
+      [[ -n "$me" && "$(git log -1 --format=%ce "$sha" 2>/dev/null)" == "$me" ]] || continue
+    fi
     reasons=""
     # Files this commit added or changed, relative to its first parent (or to nothing for a root commit).
     while IFS= read -r -d '' path; do
@@ -98,15 +111,35 @@ PostToolUse)
         continue
       fi
       size=$(git cat-file -s "$sha:$path" 2>/dev/null || echo 0)
-      [[ "$size" -gt 0 && "$size" -le 5242880 ]] || continue     # skip empty and >5MB blobs
+      [[ "$size" -gt 0 ]] || continue
+      if [[ "$size" -gt 52428800 ]]; then                       # over 50 MB: say so, do not pretend it was scanned
+        notes+="${sha:0:12} $path is larger than 50 MB and was not scanned"$'\n'
+        continue
+      fi
       hit=$(git cat-file -p "$sha:$path" 2>/dev/null | secret_prefixes | tr '\n' ' ')
       [[ -n "$hit" ]] && reasons+="secret-shaped string in $path (${hit% }); "
-    done < <(git -c core.quotePath=false diff-tree -r --root -m --first-parent --no-commit-id --name-only -z --diff-filter=ACMR "$sha" 2>/dev/null)
-    [[ -n "$reasons" ]] && findings+="${sha:0:12} ${reasons%; }"$'\n' && printf '%s %s\n' "$sha" "${reasons%; }" >> "$flag"
+    done < <(git -c core.quotePath=false diff-tree -r --root -m --first-parent --no-commit-id --name-only -z --diff-filter=d "$sha" 2>/dev/null)
+    [[ -n "$reasons" ]] || continue
+    if [[ "$pushed" -eq 1 ]]; then
+      published+="${sha:0:12} ${reasons%; }"$'\n'
+    else
+      findings+="${sha:0:12} ${reasons%; }"$'\n'
+      printf '%s %s\n' "$sha" "${reasons%; }" >> "$flag"
+    fi
   done
+  [[ "$total" -gt 500 ]] && notes+="$total new commits appeared; only the newest 500 were scanned"$'\n'
 
   live_flags "$flag" >/dev/null     # drop flags for commits that no longer exist
 
+  if [[ -n "$published" ]]; then
+    {
+      echo "The metadev commit guard found a problem in a commit that is ALREADY ON A REMOTE."
+      sed 's/^/  /' <<<"$published"
+      echo "It was created and pushed before it could be checked. Stop what you are doing and tell the owner now."
+      echo "If the value is a real secret it is exposed and must be rotated; removing the commit afterwards does not undo that."
+      echo "Do not rewrite the remote history on your own."
+    } >&2
+  fi
   if [[ -n "$findings" ]]; then
     {
       echo "The metadev commit guard found a problem in a commit that was just created."
@@ -115,11 +148,12 @@ PostToolUse)
       echo "Pushing from this repository is blocked until these commits are gone."
       echo "If a real secret was committed and has ever been pushed or shared, it must be rotated: tell the owner."
       echo "If this is a false positive (for example a documented test fixture), tell the owner. The plugin README explains how the owner clears the block."
-      [[ "$total" -gt 50 ]] && echo "Note: $total new commits appeared; only the newest 50 were scanned."
     } >&2
-    exit 2
   fi
-  [[ "$total" -gt 50 ]] && echo "metadev commit guard: $total new commits appeared; only the newest 50 were scanned." >&2
+  if [[ -n "$notes" ]]; then
+    { echo "metadev commit guard, not fully checked (tell the owner):"; sed 's/^/  /' <<<"$notes"; } >&2
+  fi
+  [[ -n "$published$findings$notes" ]] && exit 2
   exit 0
   ;;
 esac

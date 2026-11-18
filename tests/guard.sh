@@ -62,6 +62,9 @@ expect "secret in a binary file blocked"          "$(pre_commit "git commit -m '
 git reset -q c.bin; rm -f c.bin c.js; printf 'KEY=%s\n' "$FAKE_AWS" >> a.txt
 expect "commit -am with unstaged secret blocked"  "$(pre_commit "git commit -am 'x'")" 2
 expect "commit without -a ignores unstaged file"  "$(pre_commit "git commit -m 'x'")" 0
+mkdir -p sub; cd sub
+expect "commit -am from a subdirectory still blocked" "$(pre_commit "git commit -am 'x'")" 2
+cd ..
 expect "missing working directory blocked"        "$(jq -n '{tool_input:{command:"git commit -m x"}}' | bash "$PRE_COMMIT" >/dev/null 2>&1; echo $?)" 2
 
 echo "== layer 2: after the command"
@@ -109,6 +112,12 @@ cd "$WORK/other"; echo "KEY=1" > .env; git add -f .env; git commit -qm "someone 
 cd "$WORK/d"
 expect "pulled commit with .env is not flagged"   "$(step 'git pull -q origin main')" "0 0"
 expect "no flag for a pulled commit"              "$(flagged)" no
+
+echo "== a commit made and pushed in one command is reported"
+echo "KEY=2" > .env.production; git add -f .env.production
+expect "alias commit + push in one command reported" "$(step 'git ci -qm x && git push -q origin HEAD:main')" "0 2"
+expect "message says it is already on a remote"   "$(grep -c 'ALREADY ON A REMOTE' "$WORK/post.err")" 1
+expect "nothing left to block, so no flag"        "$(flagged)" no
 
 echo "== without jq, python3 is used"
 BIN="$WORK/bin"; mkdir -p "$BIN"
