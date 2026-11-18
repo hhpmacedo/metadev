@@ -8,11 +8,11 @@ Detailed reasoning and worked examples behind each Design Review check.
 
 ### Example: an AI chat product
 
-**What happened:** The design included an AI chat pipeline with multi-step tool execution. The `stopWhen: stepCountIs(5)` config was a one-line requirement that was part of the SDK contract, but wasn't called out in the design as a critical configuration item.
+**What happened:** The design included an AI chat pipeline with multi-step tool execution. The stop condition (`stopWhen: stepCountIs(5)`; the helper is named `isStepCount` from AI SDK 7) was a one-line requirement that was part of the SDK contract, but wasn't called out in the design as a critical configuration item. Without it the pipeline stops after the first tool call and the conversation stalls with no error.
 
 **Which checks would have caught it:**
 
-- **Check 5 (External Dependencies):** The exact AI SDK configuration requirements should have been listed. `stepCountIs` is not obvious from the SDK docs — it requires knowing the Vercel AI SDK v6 multi-step API.
+- **Check 5 (External Dependencies):** The exact AI SDK configuration requirements should have been listed. The default of a single step is documented, but nothing fails loudly when it is left in place, so it has to be written down as a required setting.
 - **Check 6 (Testability):** Teresa's test plan should have included "conversation terminates after N steps" as a testable acceptance criterion.
 - **Check 3 (Deployment Plan):** The deployment checklist should have included AI pipeline configuration verification.
 

@@ -43,7 +43,7 @@ A good outcome is generated content that reads like a designed document, and a r
    </ReactMarkdown>
    ```
 
-3. **Give it document typography with prose classes.** Wrap the renderer in an element with the typography plugin's `prose` classes and adjust elements with modifiers. This gets consistent headings, spacing and line height without styling every element by hand.
+3. **Give it document typography with prose classes.** Wrap the renderer in an element with the typography plugin's `prose` classes and adjust elements with modifiers. The plugin must be loaded or the classes do nothing: `@plugin "@tailwindcss/typography";` in the CSS file on Tailwind v4, the `plugins` array on v3. This gets consistent headings, spacing and line height without styling every element by hand.
 
    ```typescript
    <article className="

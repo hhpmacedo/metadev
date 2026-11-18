@@ -75,13 +75,13 @@ If you do not know whether the target table holds real data, or the change drops
 
    ```sql
    CREATE INDEX idx_clients_email ON clients(email);
-   -- Composite: order matters, most selective column first
+   -- Composite: order matters, columns filtered by equality first
    CREATE INDEX idx_projects_client_status ON projects(client_id, status);
    -- Partial: only rows that match a condition
    CREATE INDEX idx_projects_active ON projects(client_id) WHERE status = 'active';
    ```
 
-9. **Enable row-level security on every new table that holds user data, and write its policies in the same migration.** Row-level security is off by default on a new table. Policy syntax is in `foundation-supabase.md`.
+9. **Enable row-level security on every new table that holds user data, and write its policies in the same migration.** Row-level security is off by default on a table created with SQL, which includes every migration. (It is on only for tables created in the dashboard's table editor.) Policy syntax is in `foundation-supabase.md`.
 
 10. **Put multi-statement writes that must succeed or fail together in a database function** and call it from the application, so they run in one transaction.
 

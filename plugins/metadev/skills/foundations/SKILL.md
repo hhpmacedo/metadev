@@ -11,7 +11,7 @@ A foundation is a set of claims about how something is, with a date. It tells yo
 ## Using one
 
 - Read the file for the tool your task touches, not all of them.
-- Check its "Last validated" line first. Every file here was carried over from older material and has **not been re-validated since February 2026**. Treat versions, limits, prices, flags and command names as likely to have moved.
+- Check its "Last validated" line and "Versions checked" line first. The files were checked against each tool's documentation and command help on 2026-11-18 by an automated check; none has yet been confirmed in a live project. If the project uses a different major version from the one checked, expect differences.
 - A claim marked "(unverified)" was already doubted when it was carried over. Check it against the tool's current documentation or a real call before you depend on it.
 - If you find a claim is wrong, say so in your report with what you observed. Do not silently work around it; the file needs correcting.
 - Facts about the product you are working on (its users, brand, infrastructure, data) are not here. They are in the project's own `knowledge/foundations/`, described in `team-standards`.
@@ -23,7 +23,7 @@ A foundation is a set of claims about how something is, with a date. It tells yo
 | `foundation-supabase.md` | Database and indexing, keys and clients, row-level security, storage, auth defaults, query behaviour, transactions, plan limits, connection variables |
 | `foundation-supabase-cli.md` | Running the CLI, linking, migration commands and history, storage bucket commands |
 | `foundation-vercel.md` | CLI, project configuration, deployments and previews, protected URLs and aliases, variable scopes, function time limits |
-| `foundation-vercel-ai-sdk.md` | The step limit required in tool-calling pipelines |
+| `foundation-vercel-ai-sdk.md` | The stop condition (`stopWhen`) that enables and bounds multi-step tool calling |
 | `foundation-nextjs-app-router.md` | Route groups, dynamic parameters, server and client components, code splitting, route handlers, public variables |
 | `foundation-shadcn-ui.md` | What it is, installation, structure, components and variants, accessibility, Tailwind underneath |
 | `foundation-react-pdf.md` | Use cases, document API, styling differences from web CSS, fonts, headers and footers |

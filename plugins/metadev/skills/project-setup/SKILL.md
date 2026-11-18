@@ -12,7 +12,8 @@ Infrastructure is ready when a new user can sign up and the first feature can re
 
 | Foundation | What you need from it |
 | --- | --- |
-| `foundation-supabase.md` (plugin, `foundations` skill) | Auth provider defaults (email confirmation), storage buckets, the migration commands and how to repair migration history |
+| `foundation-supabase.md` (plugin, `foundations` skill) | Auth provider defaults (email confirmation), storage buckets, key names |
+| `foundation-supabase-cli.md` (plugin, `foundations` skill) | The migration commands, which database each one targets, and how to repair migration history |
 | `foundation-vercel.md` (plugin, `foundations` skill) | How environment variables are set per environment |
 | Project `knowledge/foundations/` | Any project-specific account, region or naming facts |
 
@@ -27,7 +28,7 @@ The steps below assume the team's usual stack (Supabase and Vercel). On another 
 
 ## Approach
 
-1. **Configure the auth provider for the kind of app this is.** Email confirmation is on by default in the database platform's auth settings. For a test or demo app, turn it off (dashboard: Authentication, Providers, Email), because it blocks user creation in development and QA. Decide this on purpose for the kind of app you are setting up; the default has blocked QA before.
+1. **Configure the auth provider for the kind of app this is.** Email confirmation is on by default in the database platform's auth settings. For a test or demo app, turn it off (dashboard: Authentication, Sign In / Providers, Email), because it blocks user creation in development and QA. Decide this on purpose for the kind of app you are setting up; the default has blocked QA before.
 
 2. **Create the storage buckets now.** Every bucket the design mentions is created before infrastructure is called ready. A missing bucket fails at the first upload, usually in front of QA.
 
@@ -36,14 +37,14 @@ The steps below assume the team's usual stack (Supabase and Vercel). On another 
 4. **Apply the migrations and confirm they applied.**
 
    ```bash
-   npx supabase db push          # after linking the project
-   npx supabase migration list   # verify what was applied
+   npx supabase db push --remote          # after linking the project (CLI 3.x; without --remote it targets the local stack)
+   npx supabase migration list --remote   # verify what was applied
    ```
 
    If orphan entries in the migration history block the push, repair the history and push again:
 
    ```bash
-   npx supabase migration repair <version> --status applied
+   npx supabase migration repair <version> --status reverted --remote   # removes an orphan entry from the remote history
    ```
 
 5. **Prove it with the first real flow.** Create a user, and exercise one read, one write and one upload (if storage is used) in the environment you set up. This is the verify-before-done rule in `team-standards` applied to infrastructure.
@@ -55,7 +56,7 @@ The steps below assume the team's usual stack (Supabase and Vercel). On another 
 - A new user can be created in the target environment without manual intervention.
 - Each required bucket exists (list them and check).
 - Every variable the code reads has a value in the hosting environment and in local development. You compared the two lists rather than assuming.
-- The migrations were pushed and `npx supabase migration list` was run afterwards to confirm they applied.
+- The migrations were pushed and `npx supabase migration list --remote` was run afterwards to confirm they applied.
 - One end-to-end flow that touches auth, the database and storage has been run and observed to work.
 
 ## Anti-patterns

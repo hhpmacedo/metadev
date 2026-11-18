@@ -23,7 +23,7 @@ None.
 ## Approach
 
 1. **Accept that exact-match testing does not apply.** Model output varies between runs, several different outputs can all be correct, a small change in input can produce a large change in output, and the model can do things nobody planned for. Every later step follows from this.
-2. **Run the complete flow first.** Confirm that the conversation completes, that tools execute, and that the response is coherent. A pipeline with a missing stop condition or step limit is valid code and loops forever; only a real run shows it.
+2. **Run the complete flow first.** Confirm that the conversation completes, that tools execute, and that the response is coherent. A tool-calling pipeline with no stop condition is valid code and, with the AI SDK's defaults, stops after the first tool call: the tool runs, no answer text follows, and there is no error. A stop condition that never becomes true loops instead. Only a real run shows either.
 3. **Assert behaviour, not strings.**
 
    ```javascript

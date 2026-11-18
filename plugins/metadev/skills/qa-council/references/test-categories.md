@@ -119,7 +119,7 @@ Reference for QA Council perspectives. Each category lists common test cases and
 - AI responds coherently to the first message
 - Multi-turn conversations maintain context
 - Tool calls execute and results render correctly
-- Step limits prevent infinite loops (critical: a missing step limit has stalled a production chat pipeline before)
+- A stop condition is set so the pipeline continues after tool calls and is bounded (critical: a missing one has stalled a production chat pipeline before, with no error shown)
 
 ### Rendering
 

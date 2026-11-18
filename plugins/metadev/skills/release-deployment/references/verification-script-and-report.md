@@ -15,19 +15,19 @@ Save as `scripts/deploy-verify-<feature>.sh`.
 set -e  # Exit on error
 
 echo "=== Database Migrations ==="
-npx supabase db remote status --linked
+npx supabase migration list --remote
 
 echo ""
 echo "=== Environment Variables ==="
-npx vercel env ls production
+npx vercel env ls --environment production
 
 echo ""
 echo "=== External Resources ==="
 # Check storage buckets
-npx supabase storage ls
+npx supabase storage ls ss:/// --remote --experimental
 
 # Check a specific bucket exists
-if npx supabase storage ls | grep -q "<bucket-name>"; then
+if npx supabase storage ls ss:/// --remote --experimental | grep -q "<bucket-name>"; then
   echo "OK: storage bucket '<bucket-name>' exists"
 else
   echo "MISSING: storage bucket '<bucket-name>'"
@@ -68,11 +68,11 @@ echo "=== Deployment Verification Complete ==="
 **Verified by:** <role>
 
 ### Database
-- [ ] All migrations applied (script: `npx supabase db remote status --linked`)
+- [ ] All migrations applied (script: `npx supabase migration list --remote`)
 - [ ] Schema matches code expectations (verified: <tables created>)
 
 ### Environment Variables
-- [ ] All required variables set (script: `npx vercel env ls production`)
+- [ ] All required variables set (script: `npx vercel env ls --environment production`)
 - [ ] Verified: <list key variables, names only, never values>
 
 ### External Resources

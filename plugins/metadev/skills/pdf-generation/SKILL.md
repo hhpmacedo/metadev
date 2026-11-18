@@ -31,7 +31,7 @@ A good outcome is a correctly formatted, multi-page PDF that downloads on reques
 
 3. **Start with built-in fonts.** Use Helvetica (or Times-Roman or Courier) for the first version. They need no embedding and are sufficient for business documents. Register a custom font only when brand fonts are a stated requirement.
 
-4. **Lay out with flexbox and margins.** Do not carry web styles across. Check the foundation for what the library does not support, and space items with margins. Use `fixed` elements for the header and footer and a `render` function for page numbers.
+4. **Lay out with flexbox.** Do not carry web styles across. `gap` is supported; CSS Grid is not. Check the foundation for what else the library does not support. Use `fixed` elements for the header and footer and a `render` function for page numbers.
 
 5. **Map the content to PDF components.** The library does not render markdown. Parse markdown into structured elements (headings, paragraphs, lists) and map each element type to a PDF component with its own style. Give unknown element types a plain-text fallback so content is never dropped from the export.
 

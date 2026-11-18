@@ -39,7 +39,7 @@ A good outcome is an initial load that carries only what the first view needs, w
 
    Keep the library's imports inside the module you load dynamically. A static import of the same library anywhere on the initial path puts it back in the first bundle.
 
-4. **Load: split heavy components with `React.lazy`.** When the heavy part is a component and not a function, load it lazily inside `Suspense` with a fallback.
+4. **Load: split heavy components with `React.lazy`.** When the heavy part is a component and not a function, load it lazily inside `Suspense` with a fallback. The file that calls `lazy()` must itself be a client component, or nothing is split; the lazy component must be a default export. `next/dynamic` with `ssr: false` is likewise only allowed in a client component.
 
 5. **Load: start independent requests together.** Requests that do not depend on each other should run in parallel, and each section should render when its own data arrives. The `ui-data-fetching` skill covers the pattern.
 

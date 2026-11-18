@@ -115,7 +115,7 @@ The API contract is task context, not a foundation. If the response shape of an 
    | Used by one component | Local state |
    | Used by a child or two | Props |
    | Shareable, deep-linkable, or should follow back and forward (a session id, a record id) | The URL, for example `/chat/[sessionId]` |
-   | Rarely changing and needed by every view under a shell (signed-in user, selected account) | React Context in the shared layout |
+   | Rarely changing and needed by every view under a shell (signed-in user, selected account) | React Context, in a provider client component rendered by the shared layout |
 
    For the context case, a worked example is in `references/workspace-context.md`.
 

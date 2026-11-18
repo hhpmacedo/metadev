@@ -13,7 +13,7 @@ A good outcome is that a broken production is noticed by a check rather than by 
 | Foundation | What you need from it |
 | --- | --- |
 | `foundation-github-actions.md` (plugin, `foundations` skill) | Scheduled workflows and cron syntax |
-| `foundation-vercel.md` (plugin, `foundations` skill) | The commit SHA variable available at runtime, reading function logs, which URLs are publicly reachable |
+| `foundation-vercel.md` (plugin, `foundations` skill) | The commit SHA variable (available at build and run time when system environment variables are enabled), reading function logs, which URLs are publicly reachable |
 | `foundation-supabase.md` (plugin, `foundations` skill) | How the client reads a table, and which key the health query should use |
 | Project `knowledge/foundations/foundation-infrastructure.md` | The public production URL |
 
@@ -60,7 +60,7 @@ If the public production URL is unknown, stop and return `needs-decision`. A che
    name: Production Health Check
    on:
      schedule:
-       - cron: '0 9 * * 1-5'  # Weekdays at 9am
+       - cron: '7 9 * * 1-5'  # Weekdays at 09:07 UTC; off the hour, where scheduled runs are most often delayed
 
    jobs:
      health:
@@ -77,7 +77,7 @@ If the public production URL is unknown, stop and return `needs-decision`. A che
    ```
 5. **Use the same endpoint in release verification.** The verification script in the `release-deployment` skill calls it, so the release check and the periodic check agree on what "healthy" means.
 6. **After a release, watch the things you measured.** Each risk assessed during the release has a constraint and a threshold (for example a function time limit and the input size at which it would be reached). Those thresholds are what to re-check; an unquantified "keep an eye on it" is not a monitoring plan.
-7. **When a check fails, gather evidence before changing anything**: the health response body, the function logs for the deployment (`npx vercel logs <deployment-url>`), the migration status and the deployment listing. Then follow the evidence-first debugging practice in the `team-standards` skill. If a recent release is the cause and a rollback plan exists, see the `deployment-rollback` skill.
+7. **When a check fails, gather evidence before changing anything**: the health response body, the function logs for the deployment (`npx vercel logs --deployment <deployment-url>`; it returns the last 30 minutes by default, add `--since` for an older failure), the migration status and the deployment listing. Then follow the evidence-first debugging practice in the `team-standards` skill. If a recent release is the cause and a rollback plan exists, see the `deployment-rollback` skill.
 
 ## Done means
 
@@ -89,6 +89,6 @@ If the public production URL is unknown, stop and return `needs-decision`. A che
 ## Anti-patterns
 
 - **A health endpoint that checks nothing.** If it cannot go red when the database is unreachable, it adds no information.
-- **Pointing the check at a deployment-specific URL.** Those may require a platform login. Use the public alias or custom domain.
+- **Pointing the check at a deployment-specific URL.** Those require a platform login by default. Use the production domain.
 - **"To monitor" with no measurement.** State the constraint, the measured value and the threshold at which to look again.
 - **Adding many scheduled checks at once.** The same rule as for any pipeline applies: a check that cries wolf gets ignored. Start with one that catches a real outage.

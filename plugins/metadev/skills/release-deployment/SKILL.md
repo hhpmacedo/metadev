@@ -29,12 +29,12 @@ If the production URL, the database project reference, or the list of required v
 ## Approach
 
 1. **Review the design for deployment requirements before the build is finished.** List what production will need that it does not have today. Raising a missing bucket or a risky function at design review is cheap; discovering it after delivery is not.
-2. **Audit the current state with the platform tooling.** Do not rely on memory or on what a previous report said.
+2. **Audit the current state with the platform tooling.** Do not rely on memory or on what a previous report said. The commands below are for Supabase CLI 3.x, where a command acts on the local database unless `--remote` is given; a project pinned to 2.x omits `--remote`. Check the installed version first (`npx supabase --version`): on 3.x, `db push` without `--remote` succeeds and changes nothing in production.
 
    ```bash
-   npx supabase db remote status --linked   # which migrations are applied
-   npx vercel env ls production             # which variables are set
-   npx supabase storage ls                  # which buckets exist
+   npx supabase migration list --remote                    # which migrations are applied
+   npx vercel env ls --environment production              # which variables are set
+   npx supabase storage ls ss:/// --remote --experimental  # which buckets exist
    ```
 
 3. **Compare to the expected state.** Read the design document for expected infrastructure, the migration files for the schema that should exist, and `.env.example` for the required variables. Write the differences as a list of gaps.
@@ -43,7 +43,7 @@ If the production URL, the database project reference, or the list of required v
 
    ```
    Gap: Migration <NNN> not applied to production
-   Action: npx supabase db push
+   Action: npx supabase db push --remote
    Result: Migration <NNN> applied successfully
    Verified: Table "<name>" exists with expected columns
    ```
@@ -80,5 +80,5 @@ If the production URL, the database project reference, or the list of required v
 - **Verifying only that the app loads.** "App exists" is not "app works". Complete a logged-in flow.
 - **Flagging a risk as "may hit timeout" or "to monitor".** That is not actionable. Measure it and state whether the risk is real or theoretical.
 - **Deferring a check you have the tools to run.** If a setting can be read during the audit, read it.
-- **Verifying on a deployment-specific URL.** Those may sit behind the hosting platform's login. Use the public alias or custom domain.
+- **Verifying on a deployment-specific URL.** Those sit behind the hosting platform's login by default. Use the production domain.
 - **Closing gaps without recording them.** An unrecorded fix cannot be distinguished from an assumption next time. If it is not written down, it does not exist.

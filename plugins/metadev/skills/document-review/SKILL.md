@@ -210,7 +210,7 @@ Run these after the universal checks.
 - Error handling strategy per dependency
 - External Dependency Validation table filled
 
-**Why this matters:** One AI chat mandate missed the `stopWhen: stepCountIs(5)` config. One messaging mandate had phone number format mismatches. Both were dependency validation failures.
+**Why this matters:** One AI chat mandate missed the stop condition (`stopWhen`) that lets a tool-calling pipeline continue past its first step. One messaging mandate had phone number format mismatches. Both were dependency validation failures.
 
 #### D3: Implementation Sequencing
 

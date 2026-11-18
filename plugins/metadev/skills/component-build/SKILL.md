@@ -34,7 +34,7 @@ If the project has no token definitions at all, do not invent a palette. Use the
 
 3. **Decide where it runs.** Keep it a server component unless it needs hooks, event handlers, browser APIs or a hook-based library. The usual shape is a server component that fetches and passes data to a small client component that holds the interaction. This keeps code out of the client bundle.
 
-4. **Place it in the route structure.** When several views share a shell but not a URL prefix, put them in a route group with a shared layout. Do not copy the shell into each page. In dynamic routes, await `params`.
+4. **Place it in the route structure.** When several views share a shell but not a URL prefix, put them in a route group with a shared layout. Do not copy the shell into each page. In dynamic routes, await `params` and `searchParams` (in a client component page, read them with `use()`).
 
 5. **Compose from primitives.** Use the project's existing primitives (`components/ui/`) before writing a new element, and put composed components in a domain folder next to them. Build complex components from simple ones with `children` and render props. Avoid deep hierarchies. If a component needs more than three dimensions of state, it probably needs to be decomposed; raise that at design review, before building it.
 
@@ -50,13 +50,13 @@ If the project has no token definitions at all, do not invent a palette. Use the
    | Shadow | Elevation: sm, md, lg |
    | Radius | sm 4px, md 8px, lg 12px, xl 16px |
 
-   Express variants as a map from prop value to class string, not as conditionals spread through the markup. Write custom CSS only for complex animations, print styles and overrides of third-party libraries. If the project supports dark mode, give every colour class its `dark:` counterpart as you write it.
+   Express variants as a map from prop value to class string, not as conditionals spread through the markup. Write custom CSS only for complex animations, print styles and overrides of third-party libraries. If the project supports dark mode, prefer the project's semantic token classes (`bg-background`, `text-foreground`), which switch on their own; give a `dark:` counterpart only to raw palette classes.
 
 8. **Build all four states.** Loading (initial fetch and async operations), empty (no data, first use), error (failed fetch, validation errors) and success. Every interactive component handles all four.
 
 9. **Build mobile-first and check widths as you go.** Start from the single-column layout and add breakpoint classes upward. Check every view at 375px, 768px and 1280px during development, not only at the end. At the start of implementation, share a responsive test matrix (viewports by critical screens) with QA so both sides test the same thing.
 
-10. **Walk the keyboard path.** The primitives handle focus, Escape and ARIA for themselves. Your composition around them does not get that for free: tab through the whole component, operate every control, and confirm focus is visible and lands somewhere sensible after dialogs close.
+10. **Walk the keyboard path.** The primitives from the project's base library handle focus, Escape and ARIA for themselves. Your composition around them does not get that for free: tab through the whole component, operate every control, and confirm focus is visible and lands somewhere sensible after dialogs close.
 
 11. **Verify before reporting done**, following the `team-standards` skill: the project builds, and you have looked at each state and each width yourself.
 

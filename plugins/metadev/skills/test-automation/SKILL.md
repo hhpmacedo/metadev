@@ -69,12 +69,12 @@ If the project does not record how to obtain a test session or which URL is publ
    - Keep tests independent, with no shared state, so they pass in any order and alone.
    - Take a screenshot on failure, so the failure can be diagnosed without re-running.
 7. **Clear the page before starting a flow.** Automated browser sessions cannot answer prompts by themselves, and an unanswered prompt looks like a broken feature.
-   - Deny browser permission prompts (notifications, location, camera) at the start, unless the test needs one granted.
+   - Grant only the browser permissions the test needs (notifications, location, camera). There is no call that denies them; a permission that was not granted stays ungranted.
    - Take a snapshot first to detect a cookie consent banner, and dismiss it with a click before the flow. If an overlay still blocks interaction, remove it from the page with a script.
-   - Register the dialog handler before the action that triggers `alert()`, `confirm()` or `prompt()`, not after.
-8. **Reach signed-in pages without repeating the sign-in flow.** Set the session (cookies or local storage) before navigating. With token-based auth such as Supabase, inject the session token directly. For preview deployments behind access protection, use the publicly reachable address recorded in the project foundation.
+   - Dialogs from `alert()`, `confirm()` or `prompt()`: through the browser MCP server, handle the dialog after it opens (`browser_handle_dialog`); until then every other browser tool is refused. In a scripted Playwright test it is the other way round: register the handler before the action that triggers the dialog.
+8. **Reach signed-in pages without repeating the sign-in flow.** Cookies can be set before navigating. Local storage belongs to an origin, so it needs a saved storage state, the server's storage tools, or a page of that origin already loaded. With token-based auth such as Supabase, inject the session token directly. For preview deployments behind access protection, use the publicly reachable address recorded in the project foundation.
 9. **When the browser stalls, diagnose before retrying.**
-   1. Take a snapshot. It may show a dialog or permission prompt.
+   1. Take a snapshot. If a dialog is open the snapshot is refused and the tool response reports a modal state; handle the dialog first.
    2. Read the console messages for errors.
    3. Reload the page to reset state.
    4. If it is still stuck, close the page and open it again.

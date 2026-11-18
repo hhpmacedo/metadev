@@ -52,10 +52,10 @@ The project's install, build and test commands are read from its `package.json` 
      build:
        runs-on: ubuntu-latest
        steps:
-         - uses: actions/checkout@v4
-         - uses: actions/setup-node@v4
+         - uses: actions/checkout@v7
+         - uses: actions/setup-node@v7
            with:
-             node-version: '20'
+             node-version: '24'   # match the project's own Node version; 20 is end of life
              cache: 'npm'
          - run: npm ci
          - run: npm run build

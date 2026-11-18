@@ -21,12 +21,12 @@ Execute each check and report pass/fail:
 ### Infrastructure
 
 - [ ] **Deployment accessible:** Fetch the production URL, verify HTTP 200
-- [ ] **No SSO gate:** Verify the public alias URL is accessible (not Vercel SSO-protected)
+- [ ] **Publicly reachable:** Verify the production domain (custom domain or production `.vercel.app` domain) is accessible. Generated deployment URLs are login-protected by default and are not the address to test
 - [ ] **Build status:** Check `npx vercel ls` for latest deployment status
 
 ### Database (if Supabase project)
 
-- [ ] **Migrations current:** Compare local and remote with `npx supabase migration list` (see `foundation-supabase-cli.md`)
+- [ ] **Migrations current:** Compare local and remote with `npx supabase migration list --remote` (CLI 3.x; see `foundation-supabase-cli.md`)
 - [ ] **Tables exist:** Verify expected tables are present
 
 ### Environment

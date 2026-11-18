@@ -51,7 +51,7 @@ The plugin follows the Knowledge-as-Code separation.
 
 Nothing about your products is stored in the plugin. The roles that depend on product knowledge (requirements, design direction, production changes, security) stop and ask when a required project foundation is missing instead of filling the gap from general knowledge. Run `/metadev:knowledge-audit` in a project to see which foundations exist, which are missing and which are past their review date.
 
-The tool foundations shipped here were carried over from older material and are marked as not re-validated; each file says so.
+The tool foundations shipped here were checked against each tool's documentation and command help on 2026-11-18. Each file names the versions it was checked against, lists its sources, and marks what is still unverified. They have not been confirmed in a live project, and they go out of date: run `/metadev:knowledge-audit plugin` to see which are due for review.
 
 ## How a mandate runs
 

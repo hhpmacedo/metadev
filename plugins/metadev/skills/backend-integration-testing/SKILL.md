@@ -12,7 +12,7 @@ Good integration tests show that the API, the application logic and the database
 
 | Foundation | What you need from it |
 | --- | --- |
-| `foundation-supabase.md` (plugin, `foundations` skill) | Which client and key to use in tests, and that the service-role key bypasses row-level security (so authorization tests must not use it for the request under test) |
+| `foundation-supabase.md` (plugin, `foundations` skill) | Which client and key to use in tests, and that the secret key (legacy name: service-role key) bypasses row-level security while the client carries no user session (so authorization tests must not use it for the request under test) |
 | `foundation-supabase-cli.md` (plugin, `foundations` skill) | How to reset and seed a local database |
 | The project's test configuration and README (not a foundation; the code is the source) | Test runner, how the app and a test database are started, where seed data lives |
 

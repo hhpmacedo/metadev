@@ -53,19 +53,19 @@ If you cannot tell which database project or hosting project is production, stop
    ```
    # .env.example
    # Supabase connection
-   NEXT_PUBLIC_SUPABASE_URL=        # Supabase project URL (from dashboard > Settings > API)
-   NEXT_PUBLIC_SUPABASE_ANON_KEY=   # Supabase anon/public key
-   SUPABASE_SERVICE_ROLE_KEY=       # Supabase service role key (server-side only)
+   NEXT_PUBLIC_SUPABASE_URL=        # Supabase project URL (dashboard: Connect, or Settings > API Keys)
+   NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=   # Supabase publishable key (projects still on legacy keys: NEXT_PUBLIC_SUPABASE_ANON_KEY)
+   SUPABASE_SECRET_KEY=             # Supabase secret key, server-side only (legacy: SUPABASE_SERVICE_ROLE_KEY)
 
    # External APIs
    <SERVICE>_API_KEY=               # <what it is for> (from <where to obtain it>)
    ```
 
    Search the code for environment variable reads and add any that are missing from the file.
-3. **Compare variables per environment.** List what is set in each scope (`npx vercel env ls production`, and the same for preview) and compare names against `.env.example`. Record names only, never values. Note variables that are set in one scope and missing in another.
-4. **Compare migrations.** List the local files (`ls supabase/migrations/`) and the remote status (`npx supabase db remote status --linked`). Every local migration should be applied remotely, and every remote migration should have a local file. A remote schema change with no file means someone changed the database through the dashboard; pull it into a migration (`npx supabase db pull`) so the repo is the source of truth again.
+3. **Compare variables per environment.** List what is set in each scope (`npx vercel env ls --environment production`, and the same for preview) and compare names against `.env.example`. Record names only, never values. Note variables that are set in one scope and missing in another.
+4. **Compare migrations.** List the local files (`ls supabase/migrations/`) and the remote status (`npx supabase migration list --remote` on CLI 3.x; without `--remote` on 2.x). Every local migration should be applied remotely, and every remote migration should have a local file. A remote schema change with no file means someone changed the database through the dashboard; pull it into a migration (`npx supabase db pull --remote`) so the repo is the source of truth again. This also writes to the remote migration history and asks for confirmation, so it needs approval like any other production change.
 5. **Check that the migrations rebuild the schema from nothing.** `npx supabase db reset` applies all migrations from scratch locally. If that fails, the environments cannot be reproduced.
-6. **Inventory external resources** that migrations and code do not create by themselves: storage buckets, third-party API accounts and keys, DNS records, scheduled jobs. Check each with the tool that owns it (`npx supabase storage ls` for buckets). The design documents of past changes say what should be there.
+6. **Inventory external resources** that migrations and code may not create by themselves: storage buckets (created by a migration only if it inserts into `storage.buckets`), third-party API accounts and keys, DNS records, scheduled jobs. Check each with the tool that owns it (`npx supabase storage ls ss:/// --remote --experimental` for buckets). The design documents of past changes say what should be there.
 7. **Check that configuration fails fast.** Confirm the application validates required variables at startup and stops with a clear message if one is missing. If it does not, record that as a gap; a missing variable should not surface as a runtime error in one feature weeks later.
 8. **Check that secrets are kept out of the repo.** `.env.local` and other env files are in `.gitignore`; no secret values appear in tracked files. Local development uses `.env.local`; deployed environments use the hosting platform's variable store.
 9. **Write the gaps down**, each with the evidence (the command and what it showed), the expected state, and the action needed. Quantify where you can; do not leave a finding at "to monitor" if a quick check would settle it.
