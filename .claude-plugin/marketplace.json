@@ -1,0 +1,14 @@
+{
+  "name": "metadev",
+  "description": "The metadev team plugin for Claude Code",
+  "owner": {
+    "name": "Hugo Macedo"
+  },
+  "plugins": [
+    {
+      "name": "metadev",
+      "source": "./plugins/metadev",
+      "description": "A product and engineering team as a Claude Code plugin: role agents, mandate delivery, review and QA workflow, technique and foundation skills, commit guard."
+    }
+  ]
+}

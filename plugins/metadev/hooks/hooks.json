@@ -1,0 +1,17 @@
+{
+  "description": "Blocks git commits that would add .env files or secrets",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/guard-commit.sh\"",
+            "timeout": 15
+          }
+        ]
+      }
+    ]
+  }
+}
