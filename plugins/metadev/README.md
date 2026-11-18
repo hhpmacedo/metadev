@@ -22,7 +22,20 @@ To try it without installing, clone the repo and run `claude --plugin-dir <clone
 | `skills/foundations` | Dated facts about the tools the team uses. The index is preloaded into every agent; the file for a tool is read when a task depends on it. |
 | `skills/team-standards` | Shared rules, preloaded into every agent. |
 | `workflows/deliver.js` | Checkpoint 3 as a deterministic script: build each workstream, independent review with confirmation of each finding, QA, fix loop with a round limit. |
-| `hooks/` | A commit guard that blocks `git commit` when staged changes include `.env` files or secret-shaped strings. It accepts only a strict form of `git commit` run on its own from the repository directory (`-m 'message'` or a quoted heredoc), and refuses anything combined with staging, `cd`, `git -C`, pathspecs or shell substitution. It is a backstop: it does not see git aliases or commits made outside Claude Code. |
+| `hooks/` | A commit guard in two layers, described under "Commit guard" below. |
+
+## Commit guard
+
+The guard stops an agent from committing or pushing `.env` files and secret-shaped strings (private keys, and common API key and token formats). It has two layers.
+
+1. **Before a commit.** Only a plain `git commit` run on its own from the repository directory is accepted, with `-m 'message'` or a quoted heredoc. The files it would take are scanned whole. Anything combined with staging, `cd`, `git -C`, pathspecs or shell substitution is refused, because the guard could not know what would be committed.
+2. **After every shell command.** The guard compares the repository's branches with how they were before the command. Any new local commit, however it was made (an alias, a wrapper, a variable, another branch), has its changed files scanned. If one contains an environment file or a secret-shaped string, the agent is told to undo it, and any command that mentions a push is refused in that repository until the commit is gone.
+
+Commits that arrive from a remote are not flagged; they are already published.
+
+**Clearing a false positive.** The block is one file per repository under `~/.local/state/metadev-guard/` (or `$XDG_STATE_HOME/metadev-guard/`), named `flag.<number>`, listing the flagged commits. If a flagged commit is a deliberate fixture, the owner deletes that file. The guard does not tell agents this.
+
+**Limits.** It needs `jq` or `python3` to read the command; with neither, it refuses git commands and says so. It only sees commands run through Claude Code's shell tool. A commit and a push hidden in the same command, written so that layer 1 does not recognise the commit, would get through. Files over 5 MB are not scanned. A real `pre-push` hook in the repository, or secret scanning on the remote, is still worth having.
 
 ## Three kinds of knowledge
 

@@ -6,19 +6,19 @@
 # see git aliases or commits made outside the Bash tool.
 set -uo pipefail
 
+. "$(dirname "${BASH_SOURCE[0]}")/guard-lib.sh"
+
 input=$(cat)
-if ! command -v jq >/dev/null 2>&1; then
-  # Without jq the command cannot be read. Refuse anything that mentions a
-  # commit rather than let it through unchecked.
-  if [[ "$input" == *commit* ]]; then
-    echo "Commit blocked by the metadev commit guard: jq is not installed, so the commit cannot be checked. Install jq." >&2
+if ! cmd=$(json_get tool_input.command); then
+  # Neither jq nor python3 is available, so the command cannot be read.
+  # Refuse anything that involves git rather than let it through unchecked.
+  if [[ "$input" == *git* ]]; then
+    echo "Blocked by the metadev commit guard: neither jq nor python3 is installed, so git commands cannot be checked. Install jq." >&2
     exit 2
   fi
   exit 0
 fi
-
-cmd=$(jq -r '.tool_input.command // empty' <<<"$input" 2>/dev/null) || cmd=""
-cwd=$(jq -r '.cwd // empty' <<<"$input" 2>/dev/null) || cwd=""
+cwd=$(json_get cwd)
 [[ -n "$cmd" ]] || exit 0
 
 # Does the command run git commit anywhere (including `git -C dir commit`,
@@ -28,9 +28,11 @@ any_commit='(^|[^[:alnum:]_.-])git([[:space:]]+-[^[:space:]]+([[:space:]]+[^-[:s
 # continuations (`"git" commit`, `g\it commit`, `git \<newline> commit`) do not
 # hide the commit. The strict shape check below runs on the original text and
 # refuses those forms.
-norm=${cmd//\\$'\n'/ }
-norm=${norm//[\'\"\\]/}
-grep -Eq "$any_commit" <<<"$norm" || exit 0
+# Two readings of a backslash-newline: as a space, and as nothing.
+bsnl=$'\\\n'
+norm_a=${cmd//"$bsnl"/ };  norm_a=${norm_a//[\'\"\\]/}
+norm_b=${cmd//"$bsnl"/};   norm_b=${norm_b//[\'\"\\]/}
+grep -Eq "$any_commit" <<<"$norm_a" || grep -Eq "$any_commit" <<<"$norm_b" || exit 0
 
 block() { echo "Commit blocked by the metadev commit guard." >&2; echo "$1" >&2; exit 2; }
 
@@ -79,39 +81,33 @@ fi
 cd "$cwd" || block "Cannot enter $cwd to check the staged changes."
 git rev-parse --is-inside-work-tree >/dev/null 2>&1 || exit 0
 
-# Read the diff with options that user or repository configuration cannot
-# change: no colour, no external diff or textconv filters, no path quoting.
-gd() { git -c core.quotePath=false -c color.ui=never diff --no-color --no-ext-diff --no-textconv "$@"; }
-
-# `git commit -a` / `-am` stages tracked modifications at commit time.
-if grep -Eq -- '[[:space:]]-[a-zA-Z]*a[a-zA-Z]*([[:space:]]|$)|--all' <<<"$first_line"; then
-  files=$( { gd --cached --name-only -z; gd --name-only -z; } | tr '\0' '\n' | sort -u )
-  diff=$( { gd --cached -U0; gd -U0; } )
-else
-  files=$(gd --cached --name-only -z | tr '\0' '\n')
-  diff=$(gd --cached -U0)
-fi
+# What this commit would take: the staged files, plus tracked modifications when
+# the commit uses -a. The content is read from the index or the working tree
+# and scanned whole, so nothing depends on how a diff is rendered.
+names() { git -c core.quotePath=false diff --no-ext-diff --name-only -z --diff-filter=ACMR "$@"; }
+with_all=0
+grep -Eq -- '[[:space:]]-[a-zA-Z]*a[a-zA-Z]*([[:space:]]|$)|--all' <<<"$first_line" && with_all=1
 
 problems=""
-
-# 1. Environment files (templates are fine).
-env_files=$(grep -E '(^|/)\.env(\.[^/]*)?$' <<<"$files" | grep -Ev '\.(example|sample|template|dist)$' || true)
-if [[ -n "$env_files" ]]; then
-  problems+=$'Environment files staged for commit:\n'"$(sed 's/^/  /' <<<"$env_files")"$'\n'
-fi
-
-# 2. Secret-shaped strings on added lines.
-patterns='-----BEGIN [A-Z ]*PRIVATE KEY-----|AKIA[0-9A-Z]{16}|sk-ant-[A-Za-z0-9_-]{20,}|sk-(proj-)?[A-Za-z0-9]{32,}|gh[pousr]_[A-Za-z0-9]{36,}|github_pat_[A-Za-z0-9_]{40,}|xox[baprs]-[A-Za-z0-9-]{20,}|sk_live_[A-Za-z0-9]{20,}|rk_live_[A-Za-z0-9]{20,}|AIza[0-9A-Za-z_-]{35}|eyJ[A-Za-z0-9_-]{20,}\.eyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}'
-hits=$(grep -E '^\+' <<<"$diff" | grep -Ev '^\+\+\+ ' | grep -Eo -- "$patterns" | sort -u | head -5 || true)
-if [[ -n "$hits" ]]; then
-  # Show only a prefix so the secret is not echoed back in full.
-  problems+=$'Added lines contain what look like secrets:\n'"$(cut -c1-12 <<<"$hits" | sed 's/$/.../; s/^/  /')"$'\n'
+check() { # $1 = path, content on stdin
+  local hit
+  if is_env_file "$1"; then problems+="  environment file: $1"$'\n'; return; fi
+  hit=$(secret_prefixes | tr '\n' ' ')
+  [[ -n "$hit" ]] && problems+="  secret-shaped string in $1 (${hit% })"$'\n'
+}
+while IFS= read -r -d '' path; do
+  check "$path" < <(git cat-file -p ":$path" 2>/dev/null)
+done < <(names --cached)
+if [[ "$with_all" -eq 1 ]]; then
+  while IFS= read -r -d '' path; do
+    [[ -f "$path" ]] && check "$path" < "$path"
+  done < <(names)
 fi
 
 if [[ -n "$problems" ]]; then
   {
-    echo "Commit blocked by the metadev commit guard."
-    echo "$problems"
+    echo "Commit blocked by the metadev commit guard. The commit would include:"
+    printf '%s' "$problems"
     echo "Unstage the file or move the value to an environment variable, then commit again."
     echo "If the value was ever pushed or shared, rotate it and tell the owner."
     echo "If this is a false positive (for example a documented test fixture), say so to the owner and let them commit it."

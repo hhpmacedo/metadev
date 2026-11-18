@@ -1,5 +1,5 @@
 {
-  "description": "Blocks git commits that would add .env files or secrets",
+  "description": "Commit guard: checks a commit before it is made, checks what was actually committed after every shell command, and blocks pushes while a flagged commit is unpushed",
   "hooks": {
     "PreToolUse": [
       {
@@ -9,6 +9,23 @@
             "type": "command",
             "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/guard-commit.sh\"",
             "timeout": 15
+          },
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/guard-history.sh\"",
+            "timeout": 15
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/guard-history.sh\"",
+            "timeout": 30
           }
         ]
       }

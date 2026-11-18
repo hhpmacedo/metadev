@@ -111,7 +111,7 @@ Evidence first, one fix per deployment, no speculative fixes. The `production-de
 
 - Branch from `main`: `mandate/<name>`, `fix/<name>`, `knowledge/<name>`, `process/<name>`. Lowercase kebab-case.
 - Every mandate ships as a pull request. The owner reviews the diff as part of acceptance.
-- Commit small and often on the branch. Never commit `.env` files or secrets; the plugin's commit guard blocks them. Stage in one command, then commit in the next, from the repository directory, as `git commit -m 'message'` or `git commit -F - <<'EOF'` with the message and a closing `EOF`. The guard refuses any other form (a commit combined with `git add`, `cd`, `git -C`, pathspecs, substitutions or a second command), because it could not check what would be committed.
+- Commit small and often on the branch. Never commit `.env` files or secrets; the plugin's commit guard blocks them. Stage in one command, then commit in the next, from the repository directory, as `git commit -m 'message'` or `git commit -F - <<'EOF'` with the message and a closing `EOF`. The guard refuses any other form (a commit combined with `git add`, `cd`, `git -C`, pathspecs, substitutions or a second command), because it could not check what would be committed. It also checks what was actually committed after every shell command; if it reports a problem with a commit, undo that commit before anything else, because pushes are refused until it is gone.
 
 ## Security gates
 

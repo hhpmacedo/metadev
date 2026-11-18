@@ -21,11 +21,10 @@ claude plugin validate plugins/metadev
 claude --plugin-dir plugins/metadev        # try it in a session without installing
 ```
 
-The commit guard (`plugins/metadev/scripts/guard-commit.sh`) is tested by piping a PreToolUse payload into it from a scratch git repo:
+The commit guard (`plugins/metadev/scripts/guard-commit.sh`, `guard-history.sh`, `guard-lib.sh`) has a test script that drives both layers the way Claude Code does. Run it after any change to those files; add a case for every bug or bypass you fix.
 
 ```bash
-jq -n --arg d "$PWD" '{tool_name:"Bash",cwd:$d,tool_input:{command:"git add .env && git commit -m x"}}' \
-  | bash plugins/metadev/scripts/guard-commit.sh; echo $?     # expect 2
+bash tests/guard.sh
 ```
 
 ## Releasing
