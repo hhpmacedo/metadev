@@ -3,7 +3,7 @@ export const meta = {
   description: 'Build a mandate from its design, review the diff independently, run QA, and loop fixes until QA passes or the round limit is reached',
   whenToUse: 'Checkpoint 3 of a mandate, after design.md is approved. Pass mandateDir, branch, testTarget and workstreams as args.',
   phases: [
-    { title: 'Build', detail: 'one builder per workstream, in design order' },
+    { title: 'Build', detail: 'one builder per workstream, in design order; parallel builders each get their own worktree and are merged afterwards' },
     { title: 'Review', detail: 'independent reviewers read the diff' },
     { title: 'QA', detail: 'Teresa tests against requirements' },
     { title: 'Fix', detail: 'owners fix blocking issues, Teresa re-verifies' },
@@ -85,27 +85,64 @@ const VERDICT = {
 // ---- helpers --------------------------------------------------------------
 
 const blocking = issues => issues.filter(i => i.severity === 'Critical' || i.severity === 'High')
+const minor = issues => issues.filter(i => i.severity !== 'Critical' && i.severity !== 'High')
 const owners = BUILDERS.filter(b => workstreams.some(w => w.agent === b))
 const ownerOf = issue => (owners.includes(issue.owner) ? issue.owner : owners[0])
 const list = issues => issues.map((i, n) => `${n + 1}. [${i.severity}] ${i.title}\n   Where: ${i.where}\n   Evidence: ${i.evidence}`).join('\n')
+const isolated = runParallel && workstreams.length > 1
+const workBranch = i => `${branch}--${workstreams[i].agent}-${i + 1}`
 
-const buildPrompt = w => `Mandate folder: ${mandateDir}. Branch: ${branch} (check it out; create it from main if it does not exist).
+const buildPrompt = (w, i) => `Mandate folder: ${mandateDir}.
+${isolated
+    ? `You are in your own git worktree, because other builders are working at the same time. Create the branch ${workBranch(i)} from ${branch} here (from main if ${branch} does not exist) and commit only on it. Do not check out ${branch} itself. The worktree is a fresh checkout: files that are not tracked by git, such as installed dependencies and local environment files, are not in it.`
+    : `Branch: ${branch} (check it out; create it from main if it does not exist).`}
 Your workstream, as assigned in design.md: ${w.scope}
 ${w.paths && w.paths.length ? `You own these paths: ${w.paths.join(', ')}. Do not edit files outside them.` : ''}
 ${workstreams.length > 1 ? `Other workstreams on this mandate: ${workstreams.filter(o => o !== w).map(o => `${o.agent} - ${o.scope}`).join('; ')}. Leave their files alone.` : ''}
-Build it, verify it, commit on the branch, and update delivery.md.`
+Build it, verify it, commit on the branch, and update delivery.md${isolated ? ' by adding a section for your workstream only' : ''}.`
+
+// state that every exit reports
+let builds = []
+let round = 0
+let qa = null
+let open = [] // blocking issues not yet fixed
+let reviewFixed = [] // confirmed review issues the builders fixed
+let reviewMinor = [] // Medium and Low review findings; reported, not fixed here
+let reviewUnconfirmed = [] // blocking review findings that verification did not confirm
+let reviewIncomplete = [] // review lenses that did not return
+
+const result = (outcome, extra) => ({
+  outcome,
+  fixRounds: round,
+  risk: qa ? qa.risk : 'not-assessed',
+  riskReason: qa ? qa.riskReason || '' : '',
+  notTested: qa ? qa.notTested || '' : 'QA was not run',
+  openBlockingIssues: open,
+  otherIssues: [
+    ...reviewMinor.map(i => ({ ...i, source: 'review' })),
+    ...(qa ? minor(qa.issues).map(i => ({ ...i, source: 'qa' })) : []),
+  ],
+  reviewFixed,
+  reviewFixedVerifiedByQa: Boolean(qa) && reviewFixed.length > 0,
+  reviewUnconfirmed,
+  reviewIncomplete,
+  workstreamBranches: isolated ? workstreams.map((w, i) => workBranch(i)) : [],
+  builds,
+  ...extra,
+})
 
 // ---- Build ----------------------------------------------------------------
 
 phase('Build')
-const build = w => agent(buildPrompt(w), { label: `build:${w.agent}`, phase: 'Build', agentType: `metadev:${w.agent}`, schema: BUILD })
-let builds
-if (runParallel && workstreams.length > 1) {
-  builds = await parallel(workstreams.map(w => () => build(w)))
+const build = (w, i) => agent(buildPrompt(w, i), {
+  label: `build:${w.agent}`, phase: 'Build', agentType: `metadev:${w.agent}`, schema: BUILD,
+  ...(isolated ? { isolation: 'worktree' } : {}),
+})
+if (isolated) {
+  builds = await parallel(workstreams.map((w, i) => () => build(w, i)))
 } else {
-  builds = []
-  for (const w of workstreams) {
-    const r = await build(w)
+  for (let i = 0; i < workstreams.length; i++) {
+    const r = await build(workstreams[i], i)
     builds.push(r)
     if (!r || r.status !== 'done') break // later workstreams depend on this one
   }
@@ -113,10 +150,23 @@ if (runParallel && workstreams.length > 1) {
 
 const stuck = workstreams.map((w, i) => ({ w, r: builds[i] })).filter(x => !x.r || x.r.status !== 'done')
 if (stuck.length) {
-  return {
-    outcome: 'build-blocked',
+  return result('build-blocked', {
     blocked: stuck.map(x => ({ agent: x.w.agent, scope: x.w.scope, status: x.r ? x.r.status : 'not-run-or-failed', question: x.r ? x.r.question || x.r.summary : '' })),
-    builds,
+  })
+}
+
+if (isolated) {
+  const merged = await agent(
+    `Builders worked in parallel, each on its own branch in its own git worktree. From the main working tree, bring their work together on ${branch} (create it from main if it does not exist).
+Merge these branches into ${branch}, one at a time, in this order: ${workstreams.map((w, i) => `${workBranch(i)} (${w.agent} - ${w.scope})`).join('; ')}.
+If ${mandateDir}/delivery.md conflicts, keep every workstream's section. If any other file conflicts, abort that merge and return status "blocked", naming the files and the two branches: the workstreams were not parallel-safe, and resolving product code is not your job.
+After the last merge, run the project's build and tests on ${branch} and report what they showed. If they fail, return status "blocked" with the failure. Do not edit product code. Leave the workstream branches and worktrees in place.`,
+    { label: 'build:merge', phase: 'Build', schema: BUILD },
+  )
+  if (!merged || merged.status !== 'done') {
+    return result('build-blocked', {
+      blocked: [{ agent: 'merge', scope: `merge of the workstream branches into ${branch}`, status: merged ? merged.status : 'not-run-or-failed', question: merged ? merged.question || merged.summary : '' }],
+    })
   }
 }
 
@@ -136,36 +186,55 @@ Report only defects you can point to in the diff, with the code path or input th
 Set owner to the builder whose workstream contains the file: ${workstreams.map(w => `${w.agent} (${w.scope})`).join('; ')}.`,
     { label: `review:${lens.key}`, phase: 'Review', schema: ISSUES },
   ),
-  found => parallel(blocking(found.issues).map(issue => () =>
-    agent(
-      `A reviewer reported this defect on branch ${branch}:\n${list([issue])}\nTry to show it is NOT a real defect: read the code, follow the path, and run it if you can. Answer real=true only if you could confirm it.`,
-      { label: `verify:${issue.title.slice(0, 40)}`, phase: 'Review', schema: VERDICT },
-    ).then(v => (v && v.real ? issue : null)))),
+  async found => {
+    const verdicts = await parallel(blocking(found.issues).map(issue => () =>
+      agent(
+        `A reviewer reported this defect on branch ${branch}:\n${list([issue])}\nTry to show it is NOT a real defect: read the code, follow the path, and run it if you can. Answer real=true only if you could confirm it.`,
+        { label: `verify:${issue.title.slice(0, 40)}`, phase: 'Review', schema: VERDICT },
+      ).then(v => ({ issue, verdict: v }))))
+    return { minor: minor(found.issues), verdicts: verdicts.filter(Boolean) }
+  },
 )
-let open = reviewed.filter(Boolean).flat().filter(Boolean)
-log(`Review: ${open.length} confirmed blocking issue(s)`)
+reviewed.forEach((r, n) => {
+  if (!r) { reviewIncomplete.push(LENSES[n].key); return }
+  reviewMinor.push(...r.minor)
+  for (const { issue, verdict } of r.verdicts) {
+    if (verdict && verdict.real) open.push(issue)
+    else reviewUnconfirmed.push({ ...issue, reason: verdict ? verdict.reason : 'the verification did not return' })
+  }
+})
+log(`Review: ${open.length} confirmed blocking issue(s), ${reviewUnconfirmed.length} not confirmed, ${reviewMinor.length} Medium or Low reported without a fix`)
+if (reviewIncomplete.length) log(`Review lens did not return: ${reviewIncomplete.join(', ')}. The diff was not reviewed for it.`)
 
 // ---- QA and fix loop ------------------------------------------------------
 
-const fix = (owner, issues, round) => agent(
+const fix = (owner, issues, n) => agent(
   `Mandate folder: ${mandateDir}. Branch: ${branch}.
 These confirmed issues are in your workstream. Fix each one, add a test that would have caught it, verify, commit, and note the fixes in delivery.md.
 ${list(issues)}`,
-  { label: `fix:${owner}:r${round}`, phase: 'Fix', agentType: `metadev:${owner}`, schema: BUILD },
+  { label: `fix:${owner}:r${n}`, phase: 'Fix', agentType: `metadev:${owner}`, schema: BUILD },
 )
-const fixAll = async (issues, round) => {
+// Returns the fixes that did not finish; an empty list means every owner reported done.
+const fixAll = async (issues, n) => {
+  const failed = []
   // one owner at a time: fixes may touch neighbouring code
   for (const owner of owners) {
     const mine = issues.filter(i => ownerOf(i) === owner)
-    if (mine.length) await fix(owner, mine, round)
+    if (!mine.length) continue
+    const r = await fix(owner, mine, n)
+    if (!r || r.status !== 'done') {
+      failed.push({ agent: owner, status: r ? r.status : 'not-run-or-failed', question: r ? r.question || r.summary : '', issues: mine })
+    }
   }
+  return failed
 }
 
-let qa = null
-let round = 0
 if (open.length) {
   phase('Fix')
-  await fixAll(open, 0)
+  const failed = await fixAll(open, 0)
+  if (failed.length) return result('fix-blocked', { blocked: failed })
+  reviewFixed = open
+  open = []
 }
 
 if (runQa) {
@@ -176,30 +245,26 @@ if (runQa) {
 ${round === 0
     ? 'Test the build against requirements.md and design.md, then write qa-report.md.'
     : `This is re-test round ${round}. First verify these issues are fixed (reproduce the original, confirm the fix, check nearby regressions), then re-run the main flow, and update qa-report.md.\n${list(open)}`}
-${round === 0 && open.length ? `Code review found and the builders fixed these before you started; confirm they hold:\n${list(open)}` : ''}
+${round === 0 && reviewFixed.length ? `Code review found and the builders fixed these before you started; confirm they hold:\n${list(reviewFixed)}` : ''}
 Set each issue's owner to the builder whose workstream it belongs to: ${workstreams.map(w => `${w.agent} (${w.scope})`).join('; ')}.`,
       { label: `qa:r${round}`, phase: 'QA', agentType: 'metadev:teresa', schema: QA },
     )
-    if (!qa) return { outcome: 'qa-did-not-run', builds, reviewIssues: open }
+    if (!qa) return result('qa-did-not-run')
     open = blocking(qa.issues)
     if (qa.verdict === 'PASS' && !open.length) break
+    if (!open.length) {
+      log('QA failed without a Critical or High issue; there is nothing for a builder to fix, so stopping for the owner')
+      break
+    }
     if (round >= maxFixRounds) {
       log(`QA still failing after ${round} fix round(s); stopping for the owner`)
       break
     }
     round += 1
     phase('Fix')
-    await fixAll(open, round)
+    const failed = await fixAll(open, round)
+    if (failed.length) return result('fix-blocked', { blocked: failed })
   }
 }
 
-return {
-  outcome: !runQa ? 'built-and-reviewed' : qa.verdict === 'PASS' && !open.length ? 'qa-passed' : 'qa-failed',
-  fixRounds: round,
-  risk: qa ? qa.risk : 'not-assessed',
-  riskReason: qa ? qa.riskReason || '' : '',
-  notTested: qa ? qa.notTested || '' : 'QA was not run',
-  openBlockingIssues: open,
-  otherIssues: qa ? qa.issues.filter(i => !blocking([i]).length) : [],
-  builds,
-}
+return result(!runQa ? 'built-and-reviewed' : qa.verdict === 'PASS' && !open.length ? 'qa-passed' : 'qa-failed')

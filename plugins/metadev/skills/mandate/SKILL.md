@@ -71,13 +71,17 @@ Run the `deliver` workflow with the Workflow tool (`name: "metadev:deliver"`; if
 }
 ```
 
-Set `parallel: true` only when Alex marked the workstreams parallel-safe. For a one-builder mandate, or if the owner prefers not to run a workflow, do the same steps by hand with single agents in the same order; `references/orchestration.md` has the briefs.
+Set `parallel: true` only when Alex marked the workstreams parallel-safe. Parallel builders each work in their own git worktree on a branch named `<branch>--<agent>-<n>`, and a merge step brings them onto the mandate branch before review. A fresh worktree has no installed dependencies or local environment files, so each builder sets those up again; for small workstreams, running in sequence is cheaper. For a one-builder mandate, or if the owner prefers not to run a workflow, do the same steps by hand with single agents in the same order; `references/orchestration.md` has the briefs.
 
-When it returns:
+When it returns, read `outcome` first:
 
+- **`build-blocked`** or **`fix-blocked`**: a builder, the merge of parallel workstreams, or a fix did not finish. `blocked` names who and why. Resolve it (another role, or the owner) and run the workflow again; do not go on to deployment.
+- **`qa-did-not-run`**: Teresa did not return. Run QA by hand before anything else.
 - **QA failed after the last round**: show the owner the open issues. Do not deploy.
 - **High-risk delivery** (Teresa's classification), or any production migration, environment or domain change: show the owner the QA verdict and what Marco will run, and wait for acceptance.
 - **Low-risk and passed**: continue.
+
+Whatever the outcome, report these to the owner and put them in the backlog; the workflow does not fix them: `otherIssues` (Medium and Low findings from review and QA), `reviewUnconfirmed` (blocking review findings that verification did not confirm, each with the reason) and `reviewIncomplete` (a review lens that did not run, so the diff was not reviewed for it). With `qa: false`, the fixes listed in `reviewFixed` were made but nobody tested them. After a parallel run, remove the workstream worktrees and branches listed in `workstreamBranches` once the mandate branch is confirmed (`git worktree list`).
 
 Then spawn `metadev:marco` to deploy and verify, telling him explicitly whether production changes are approved. Spawn `metadev:sasha` first if the mandate touches auth, payments or personal data. Open the pull request when Marco's verification passes; the owner reviews the diff.
 

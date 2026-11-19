@@ -27,6 +27,12 @@ The commit guard (`plugins/metadev/scripts/guard-commit.sh`, `guard-history.sh`,
 bash tests/guard.sh
 ```
 
+The `deliver` workflow (`plugins/metadev/workflows/deliver.js`) has a test that runs it against mocked agents and checks its control flow and what it returns. Run it after any change to the workflow; add a case for every bug you fix. It does not start real agents, so it does not show how they behave.
+
+```bash
+node tests/deliver.js
+```
+
 ## Releasing
 
 Bump `version` in `plugins/metadev/.claude-plugin/plugin.json` and the version line in `README.md`, then push to `main`. Installed copies pick the change up with `claude plugin update metadev@metadev`.

@@ -48,7 +48,7 @@ Default to one agent at a time. Run agents together only in these cases:
 
 Never together: anything with Paula's requirements (they gate everything), and a builder with Teresa testing that builder's unfinished code.
 
-If two builders must touch the same files, run them in sequence in the order Alex gave. Parallel builders in separate git worktrees are possible, but the merge then becomes your job; it is rarely worth it at this team's scale.
+If two builders must touch the same files, run them in sequence in the order Alex gave. Two builders never share one working tree at the same time: they share the git index, so one builder's commit takes the other's staged files. The `deliver` workflow gives each parallel builder its own git worktree and branch and merges them before review; by hand, do the same or run them in sequence.
 
 ## Checks after each phase
 
