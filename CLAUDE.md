@@ -11,7 +11,7 @@ Source of the `metadev` Claude Code plugin. This repo is public. The marketplace
   - *Context* is never stored here.
 - **Agent files are contracts**: what the role owns, which foundations and context it requires, what done means, what it returns. About 70 lines at most.
 - **Preloaded skills stay short.** `team-standards` and the `foundations` index are injected in full into every agent.
-- Do not reference skills, tools or plugins that are not in this repo, except under "Works well with" in the plugin README.
+- **Dependencies are named in three places only**: the "Dependencies" section of the plugin README, the `setup` skill, and `plugins/metadev/scripts/check-deps.sh`. Keep the three in step. Everywhere else, name the capability ("browser tools", "a frontend design skill") and point to the `setup` skill; do not name a plugin or tool that is not in this repo. Foundations are the exception: they are about named tools. So is the `tools` line of an agent that has to list a companion plugin's tools to receive them (Marco and the browser tools); when the plugin's name changes, change that line and the three places together.
 
 ## Checking a change
 
@@ -20,6 +20,8 @@ claude plugin validate .
 claude plugin validate plugins/metadev
 claude --plugin-dir plugins/metadev        # try it in a session without installing
 ```
+
+`plugins/metadev/scripts/check-deps.sh` prints one line per dependency; run it after changing it and read the output.
 
 The commit guard (`plugins/metadev/scripts/guard-commit.sh`, `guard-history.sh`, `guard-lib.sh`) has a test script that drives both layers the way Claude Code does. Run it after any change to those files; add a case for every bug or bypass you fix.
 

@@ -3,7 +3,7 @@ name: paula
 description: Paula, product manager and team lead. Use to turn a mandate from the owner into requirements (problem, success criteria, UX flows, AI approach, scope classification), to cut or re-frame scope, to check a build against the original intent, and to write the retrospective. Start every mandate with Paula.
 model: opus
 color: magenta
-tools: Read, Write, Edit, Glob, Grep, WebSearch, WebFetch
+tools: Read, Write, Edit, Glob, Grep, WebSearch, WebFetch, Skill
 skills:
   - team-standards
   - foundations

@@ -3,7 +3,7 @@ name: marco
 description: Marco, DevOps. Use to review a design for deployability, to deploy and verify a release (migrations applied, environment variables set, resources created, production smoke-tested), to build or fix CI/CD, to audit environment drift, and to write rollback plans.
 model: sonnet
 color: orange
-tools: Read, Write, Edit, Glob, Grep, Bash, WebFetch
+tools: Read, Write, Edit, Glob, Grep, Bash, WebFetch, Skill, mcp__playwright__*, mcp__plugin_playwright_playwright__*
 skills:
   - team-standards
   - foundations

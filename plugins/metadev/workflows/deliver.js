@@ -1,11 +1,12 @@
 export const meta = {
   name: 'deliver',
   description: 'Build a mandate from its design, review the diff independently, run QA, and loop fixes until QA passes or the round limit is reached',
-  whenToUse: 'Checkpoint 3 of a mandate, after design.md is approved. Pass mandateDir, branch, testTarget and workstreams as args.',
+  whenToUse: 'Checkpoint 3 of a mandate, after design.md is approved. Pass mandateDir, branch, testTarget and workstreams as args; designReview and security when the mandate has a design spec or touches auth, payments or personal data.',
   phases: [
     { title: 'Build', detail: 'one builder per workstream, in design order; parallel builders each get their own worktree and are merged afterwards' },
-    { title: 'Review', detail: 'independent reviewers read the diff' },
+    { title: 'Review', detail: 'independent reviewers read the diff; Sasha joins them when security is set' },
     { title: 'QA', detail: 'Teresa tests against requirements' },
+    { title: 'Design review', detail: 'Vera compares the build with the design spec, once, when designReview is set' },
     { title: 'Fix', detail: 'owners fix blocking issues, Teresa re-verifies' },
   ],
 }
@@ -19,6 +20,8 @@ const testTarget = input.testTarget || 'not given - start the project dev server
 const workstreams = Array.isArray(input.workstreams) ? input.workstreams : []
 const runParallel = input.parallel === true
 const runQa = input.qa !== false
+const designReview = input.designReview === true
+const security = input.security === true
 const maxFixRounds = Number.isInteger(input.maxFixRounds) ? input.maxFixRounds : 2
 
 const BUILDERS = ['diego', 'leo', 'rafa']
@@ -76,6 +79,16 @@ const QA = {
   required: ['verdict', 'risk', 'issues'],
 }
 
+const DESIGN = {
+  type: 'object',
+  properties: {
+    verdict: { type: 'string', enum: ['matches spec', 'changes needed'] },
+    notSeen: { type: 'string', description: 'screens, widths or states that could not be compared, and why; empty if none' },
+    issues: ISSUES.properties.issues,
+  },
+  required: ['verdict', 'issues'],
+}
+
 const VERDICT = {
   type: 'object',
   properties: { real: { type: 'boolean' }, reason: { type: 'string' } },
@@ -90,6 +103,9 @@ const owners = BUILDERS.filter(b => workstreams.some(w => w.agent === b))
 const ownerOf = issue => (owners.includes(issue.owner) ? issue.owner : owners[0])
 const list = issues => issues.map((i, n) => `${n + 1}. [${i.severity}] ${i.title}\n   Where: ${i.where}\n   Evidence: ${i.evidence}`).join('\n')
 const isolated = runParallel && workstreams.length > 1
+const mandateName = mandateDir.replace(/\/+$/, '').split('/').pop()
+const screensDir = `docs/qa/${mandateName}/screens`
+const ownersLine = workstreams.map(w => `${w.agent} (${w.scope})`).join('; ')
 const workBranch = i => `${branch}--${workstreams[i].agent}-${i + 1}`
 
 const buildPrompt = (w, i) => `Mandate folder: ${mandateDir}.
@@ -110,6 +126,8 @@ let reviewFixed = [] // confirmed review issues the builders fixed
 let reviewMinor = [] // Medium and Low review findings; reported, not fixed here
 let reviewUnconfirmed = [] // blocking review findings that verification did not confirm
 let reviewIncomplete = [] // review lenses that did not return
+let design = null // Vera's review of the build, when it ran
+let designMinor = []
 
 const result = (outcome, extra) => ({
   outcome,
@@ -121,7 +139,10 @@ const result = (outcome, extra) => ({
   otherIssues: [
     ...reviewMinor.map(i => ({ ...i, source: 'review' })),
     ...(qa ? minor(qa.issues).map(i => ({ ...i, source: 'qa' })) : []),
+    ...designMinor.map(i => ({ ...i, source: 'design' })),
   ],
+  securityReview: !security ? 'not-requested' : reviewIncomplete.includes('security') ? 'did-not-run' : 'done',
+  designReview: !designReview ? 'not-requested' : design ? { verdict: design.verdict, notSeen: design.notSeen || '' } : 'did-not-run',
   reviewFixed,
   reviewFixedVerifiedByQa: Boolean(qa) && reviewFixed.length > 0,
   reviewUnconfirmed,
@@ -173,19 +194,26 @@ After the last merge, run the project's build and tests on ${branch} and report 
 // ---- Review (independent of the builders) ---------------------------------
 
 phase('Review')
-const LENSES = [
-  { key: 'correctness', ask: 'logic errors, unhandled states, race conditions, and any place the code does not do what design.md and requirements.md say' },
-  { key: 'failure-and-security', ask: 'swallowed errors and silent fallbacks, missing input validation, missing authorization checks, secrets in code, injection paths, and irreversible or unsafe migrations' },
-]
-const reviewed = await pipeline(
-  LENSES,
-  lens => agent(
-    `Review the diff of branch ${branch} against main (git diff main...${branch}) for ${lens.ask}.
+const diffReview = ask => `Review the diff of branch ${branch} against main (git diff main...${branch}) for ${ask}.
 Read ${mandateDir}/requirements.md and ${mandateDir}/design.md for intent. You did not write this code; look for where it is wrong.
 Report only defects you can point to in the diff, with the code path or input that triggers them. Style preferences are not defects.
-Set owner to the builder whose workstream contains the file: ${workstreams.map(w => `${w.agent} (${w.scope})`).join('; ')}.`,
-    { label: `review:${lens.key}`, phase: 'Review', schema: ISSUES },
-  ),
+Set owner to the builder whose workstream contains the file: ${ownersLine}.`
+const LENSES = [
+  { key: 'correctness', prompt: diffReview('logic errors, unhandled states, race conditions, and any place the code does not do what design.md and requirements.md say') },
+  { key: 'failure-and-security', prompt: diffReview('swallowed errors and silent fallbacks, missing input validation, missing authorization checks, secrets in code, injection paths, and irreversible or unsafe migrations') },
+]
+if (security) {
+  LENSES.push({
+    key: 'security',
+    agentType: 'metadev:sasha',
+    prompt: `Scope: a diff. Mandate folder: ${mandateDir}. Review what branch ${branch} changes against main (git diff main...${branch}), and the existing code it relies on for authentication, authorization and data access.
+Read requirements.md and design.md for what the change is meant to do and what data it touches. To demonstrate a finding, use: ${testTarget}
+Write your report as your contract says, and return every finding as an issue with your severity. Set owner to the builder whose workstream contains the file: ${ownersLine}.`,
+  })
+}
+const reviewed = await pipeline(
+  LENSES,
+  lens => agent(lens.prompt, { label: `review:${lens.key}`, phase: 'Review', schema: ISSUES, ...(lens.agentType ? { agentType: lens.agentType } : {}) }),
   async found => {
     const verdicts = await parallel(blocking(found.issues).map(issue => () =>
       agent(
@@ -246,11 +274,29 @@ ${round === 0
     ? 'Test the build against requirements.md and design.md, then write qa-report.md.'
     : `This is re-test round ${round}. First verify these issues are fixed (reproduce the original, confirm the fix, check nearby regressions), then re-run the main flow, and update qa-report.md.\n${list(open)}`}
 ${round === 0 && reviewFixed.length ? `Code review found and the builders fixed these before you started; confirm they hold:\n${list(reviewFixed)}` : ''}
-Set each issue's owner to the builder whose workstream it belongs to: ${workstreams.map(w => `${w.agent} (${w.scope})`).join('; ')}.`,
+${designReview && !design ? `Vera will review the interface against the design spec from your screenshots. Save one of each screen in scope at 375, 768 and 1280 pixels wide, and of each empty, loading, error and success state you reach, under ${screensDir}/, named by screen, state and width. If you have no browser tools, say so under what was not tested.` : ''}
+Set each issue's owner to the builder whose workstream it belongs to: ${ownersLine}.`,
       { label: `qa:r${round}`, phase: 'QA', agentType: 'metadev:teresa', schema: QA },
     )
     if (!qa) return result('qa-did-not-run')
     open = blocking(qa.issues)
+    // Vera reviews once, the first time the build is sound enough to look at
+    if (designReview && !design && !qa.issues.some(i => i.severity === 'Critical')) {
+      phase('Design review')
+      design = await agent(
+        `Mandate folder: ${mandateDir}. Branch: ${branch}. Review the built interface against the design spec in design.md.
+Teresa saved screenshots under ${screensDir}/; read them, and read the component code on the branch for the states and widths they do not show. Say in notSeen what you could not compare.
+Write the review to docs/design/${mandateName}-review.md, and return each difference as an issue with the severity your contract gives.
+Set each issue's owner to the builder whose workstream it belongs to: ${ownersLine}.`,
+        { label: 'design-review', phase: 'Design review', agentType: 'metadev:vera', schema: DESIGN },
+      )
+      if (design) {
+        designMinor = minor(design.issues)
+        open = [...open, ...blocking(design.issues)]
+      } else {
+        log('Design review did not return; the build was not compared with the design spec')
+      }
+    }
     if (qa.verdict === 'PASS' && !open.length) break
     if (!open.length) {
       log('QA failed without a Critical or High issue; there is nothing for a builder to fix, so stopping for the owner')

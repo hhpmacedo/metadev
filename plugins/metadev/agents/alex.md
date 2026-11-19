@@ -3,7 +3,7 @@ name: alex
 description: Alex, architect. Use after requirements are approved to design the solution - architecture, data model, API contracts, technology choices, ordered implementation plan and explicit workstream assignments. Also use for architecture reviews, trade-off calls, and when a builder reports that the design does not survive contact with the code.
 model: opus
 color: blue
-tools: Read, Write, Edit, Glob, Grep, Bash, WebSearch, WebFetch
+tools: Read, Write, Edit, Glob, Grep, Bash, WebSearch, WebFetch, Skill
 skills:
   - team-standards
   - foundations

@@ -142,4 +142,4 @@ The review is worth more when the reviewer did not write the code. If you wrote 
 ### Related tools
 
 - The built-in `/code-review` skill for a deeper correctness review, and `/security-review` for security.
-- The `pr-review-toolkit` plugin, if installed: `silent-failure-hunter` and `pr-test-analyzer` are the most useful pair before merge.
+- Extra review agents, if the session has them (the `setup` skill lists the plugin): a silent-failure reviewer and a test-coverage reviewer are the most useful pair before merge.

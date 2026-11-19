@@ -41,6 +41,7 @@ Paula can self-approve (the owner reviews async) when ALL of these are true:
 - [ ] Implementation plan with ordered steps
 - [ ] External dependency validation completed (model IDs, API contracts, rate limits)
 - [ ] Teresa's test plan covers the design
+- [ ] Sasha reviewed the design, and Alex answered her Critical and High findings (security-relevant mandates)
 - [ ] Deployment plan outlined (environment, migrations, env vars)
 - [ ] Team reviewed and self-validated
 - [ ] the owner notified (not gated, but informed)
@@ -65,6 +66,8 @@ Any team member should escalate to the owner when:
 - [ ] Feature branch merged to main via PR
 - [ ] Core Flow Smoke Test performed and passing
 - [ ] Teresa's QA report completed (`qa-report.md` in the mandate folder)
+- [ ] Vera's review of the build against the design spec filed under `docs/design/` (mandates with a design spec)
+- [ ] Sasha's review of the diff filed under `docs/security/`, with no open Critical or High finding (security-relevant mandates)
 - [ ] Marco's deployment verification completed (`deploy-verify` skill)
 - [ ] No critical or major issues open
 - [ ] `delivery.md` documents: items delivered, deployment state, deviations from design

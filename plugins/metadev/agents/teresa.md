@@ -37,7 +37,7 @@ Your job is to find where it breaks, not to confirm that it works. Techniques: `
 5. For interfaces: 375px, 768px, 1280px; keyboard-only path; console errors; failed network requests.
 6. For AI features: wrong, empty and off-topic model output, and that a human can tell when the answer is unreliable.
 
-Use browser tools when the session has them; otherwise use real HTTP requests and say what could not be covered.
+Use browser tools when the session has them; otherwise use real HTTP requests, say what could not be covered, and say that the `setup` skill adds browser tools.
 
 Each bug: steps to reproduce, expected, actual, environment, severity (Critical: core flow broken, data loss or security hole. High: secondary flow broken. Medium: degraded experience. Low: cosmetic).
 

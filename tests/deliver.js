@@ -10,7 +10,7 @@ const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor
 async function run(args, handler) {
   const calls = []
   const agent = async (prompt, opts) => {
-    calls.push(opts.label + (opts.isolation ? '[worktree]' : ''))
+    calls.push(opts.label + (opts.isolation ? '[worktree]' : '') + (opts.agentType && !/^(build|fix|qa):/.test(opts.label) ? `<${opts.agentType}>` : ''))
     return handler(opts.label, prompt)
   }
   const parallel = thunks => Promise.all(thunks.map(t => t().catch(() => null)))
@@ -28,13 +28,16 @@ const issue = (title, severity) => ({ title, severity, where: 'f:1', evidence: '
 const base = { mandateDir: 'd', branch: 'mandate/x', workstreams: [{ agent: 'leo', scope: 'api' }, { agent: 'rafa', scope: 'ui' }] }
 
 // Review finds A (High, confirmed), B (Low), C (Critical, not confirmed). QA passes with one Medium issue.
-const team = (o = {}) => label => {
+const team = (o = {}) => (label, prompt) => {
   if (label === 'build:merge') return o.merge || done
   if (label.startsWith('build:')) return done
   if (label === 'review:correctness') return o.review === null ? null : { issues: [issue('A', 'High'), issue('B', 'Low'), issue('C', 'Critical')] }
+  if (label === 'review:security') return o.sasha === null ? null : { issues: [issue('S', 'High')] }
   if (label.startsWith('review:')) return { issues: [] }
-  if (label.startsWith('verify:')) return { real: label.includes('A'), reason: 'r' }
+  if (label === 'design-review') return o.vera === null ? null : o.vera || { verdict: 'changes needed', notSeen: '', issues: [issue('D', 'Low')] }
+  if (label.startsWith('verify:')) return { real: label.includes('A') || label.includes('S'), reason: 'r' }
   if (label.startsWith('fix:')) return o.fix || done
+  if (label.startsWith('qa:') && typeof o.qa === 'function') return o.qa(label, prompt)
   if (label.startsWith('qa:')) return o.qa || { verdict: 'PASS', risk: 'low-risk', issues: [issue('Q', 'Medium')] }
 }
 
@@ -94,6 +97,51 @@ const cases = {
     const { result: r, calls } = await run(base, team({ qa: { verdict: 'FAIL', risk: 'low-risk', issues: [issue('M', 'Medium')] } }))
     assert.equal(r.outcome, 'qa-failed')
     assert.equal(calls.filter(c => c.startsWith('qa:')).length, 1)
+  },
+  async 'neither Sasha nor Vera runs unless asked'() {
+    const { result: r, calls } = await run(base, team())
+    assert.ok(!calls.some(c => c.includes('sasha') || c.includes('design-review')))
+    assert.equal(r.securityReview, 'not-requested')
+    assert.equal(r.designReview, 'not-requested')
+  },
+  async 'Sasha reviews the diff and her confirmed findings are fixed'() {
+    const { result: r, calls } = await run({ ...base, security: true }, team())
+    assert.ok(calls.includes('review:security<metadev:sasha>'))
+    assert.deepEqual(r.reviewFixed.map(i => i.title).sort(), ['A', 'S'])
+    assert.equal(r.securityReview, 'done')
+  },
+  async 'a security review that does not return is reported'() {
+    const { result: r } = await run({ ...base, security: true }, team({ sasha: null }))
+    assert.equal(r.securityReview, 'did-not-run')
+    assert.deepEqual(r.reviewIncomplete, ['security'])
+  },
+  async 'Vera reviews once after QA and minor differences are reported'() {
+    const prompts = []
+    const { result: r, calls } = await run({ ...base, designReview: true }, team({ qa: (l, p) => { prompts.push(p); return { verdict: 'PASS', risk: 'low-risk', issues: [] } } }))
+    assert.deepEqual(calls.slice(-2), ['qa:r0', 'design-review<metadev:vera>'])
+    assert.ok(prompts[0].includes('docs/qa/d/screens/'))
+    assert.equal(r.outcome, 'qa-passed')
+    assert.deepEqual(r.designReview, { verdict: 'changes needed', notSeen: '' })
+    assert.deepEqual(r.otherIssues.filter(i => i.source === 'design').map(i => i.title), ['D'])
+  },
+  async 'a blocking design difference goes through the fix loop and Teresa re-tests it'() {
+    const prompts = []
+    const { result: r, calls } = await run({ ...base, designReview: true }, team({
+      vera: { verdict: 'changes needed', issues: [issue('V', 'High')] },
+      qa: (l, p) => { prompts.push(p); return { verdict: 'PASS', risk: 'low-risk', issues: [] } },
+    }))
+    assert.deepEqual(calls.slice(-4), ['qa:r0', 'design-review<metadev:vera>', 'fix:leo:r1', 'qa:r1'])
+    assert.ok(prompts[1].includes('[High] V'))
+    assert.equal(r.outcome, 'qa-passed')
+  },
+  async 'Vera waits until QA finds no Critical issue'() {
+    let n = 0
+    const { calls } = await run({ ...base, designReview: true }, team({ qa: () => (n++ === 0 ? { verdict: 'FAIL', risk: 'low-risk', issues: [issue('K', 'Critical')] } : { verdict: 'PASS', risk: 'low-risk', issues: [] }) }))
+    assert.deepEqual(calls.slice(-4), ['qa:r0', 'fix:leo:r1', 'qa:r1', 'design-review<metadev:vera>'])
+  },
+  async 'a design review that does not return is reported'() {
+    const { result: r } = await run({ ...base, designReview: true }, team({ vera: null }))
+    assert.equal(r.designReview, 'did-not-run')
   },
 }
 

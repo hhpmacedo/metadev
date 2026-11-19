@@ -12,9 +12,12 @@ claude plugin install metadev@metadev
 Then, from any project repo:
 
 ```
+/metadev:setup
 /metadev:mandate <what you want built>
 /metadev:knowledge-audit
 ```
+
+`/metadev:setup` checks what the plugin depends on (command-line tools, browser tools, companion plugins) and offers to install what is missing. The full list is under "Dependencies" in the plugin README.
 
 ## Documentation
 
@@ -24,7 +27,7 @@ Then, from any project repo:
 
 ## Status
 
-Version 2.3.1. The tool foundations under `plugins/metadev/skills/foundations/references/` were checked on 2026-11-18 against each tool's documentation and command help by an automated check; each file lists the versions and sources it was checked against and what remains unverified. None has yet been confirmed in a live project. The `deliver` workflow has not yet been exercised on a full mandate.
+Version 2.4.0. The tool foundations under `plugins/metadev/skills/foundations/references/` were checked on 2026-11-18 against each tool's documentation and command help by an automated check; each file lists the versions and sources it was checked against and what remains unverified. None has yet been confirmed in a live project. The `deliver` workflow has not yet been exercised on a full mandate.
 
 The knowledge structure follows [Knowledge-as-Code](https://github.com/hhpmacedo/kac-framework).
 

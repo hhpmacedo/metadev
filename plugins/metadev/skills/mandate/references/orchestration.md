@@ -54,7 +54,7 @@ If two builders must touch the same files, run them in sequence in the order Ale
 
 **Requirements**: file exists; success criteria are testable; scope classification present; QA requirement stated.
 
-**Design**: file exists; implementation plan is ordered; workstreams name an owner and paths; decisions carry reasons; external dependencies were verified; `design-review` passed.
+**Design**: on a security-relevant mandate, Sasha's design findings are answered in `design.md`; file exists; implementation plan is ordered; workstreams name an owner and paths; decisions carry reasons; external dependencies were verified; `design-review` passed.
 
 **Build**: project builds; work is on the mandate branch; `delivery.md` updated; no files changed outside the workstream.
 

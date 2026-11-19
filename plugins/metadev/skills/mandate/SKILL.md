@@ -32,7 +32,8 @@ Rule of thumb: if it changes product behaviour or touches more than a few lines 
 2. If the folder exists, this is a continuation: read what is there and resume at the first phase whose document is missing.
 3. Otherwise create the empty folder. Each role writes its own document; there are no templates.
 4. Create the branch `mandate/<name>` from `main`.
-5. Look for `knowledge/foundations/` in the repo. If it is missing or its files are past their review date, tell the owner now: Paula, Vera, Marco and Sasha will stop on missing foundations rather than guess. The `knowledge-audit` skill reports what is missing or stale.
+5. Check what the session has to work with: run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-deps.sh"` and look for browser tools among your own tools. If something required is missing, stop and run the `setup` skill. If the mandate has an interface and the session has no browser tools, tell the owner now, before any work: QA will be HTTP requests only and the design review will have no screenshots. Offer the `setup` skill, and go on without browser tools only if the owner says so.
+6. Look for `knowledge/foundations/` in the repo. If it is missing or its files are past their review date, tell the owner now: Paula, Vera, Marco and Sasha will stop on missing foundations rather than guess. The `knowledge-audit` skill reports what is missing or stale.
 
 ## Phase 1: Requirements (checkpoint 1)
 
@@ -47,8 +48,9 @@ When she returns, check that `requirements.md` has testable success criteria and
 
 1. If the mandate has a real interface, spawn `metadev:vera` for the design spec first.
 2. Spawn `metadev:alex` for `design.md`. It must end with explicit workstreams and whether they are parallel-safe.
-3. Spawn `metadev:teresa` for the test plan (skip only when Paula marked QA as not required).
-4. Run the `design-review` skill on `design.md`. Send failures back to Alex by continuing the same agent, not a new one. If the scope or complexity check fails badly, take it to the owner.
+3. If the mandate touches authentication, authorization, payments or personal data, or lets untrusted content reach a model that can call tools, spawn `metadev:sasha` with scope "a design" on `design.md`. Send Critical and High findings back to Alex by continuing the same agent. This mandate is **security-relevant** from here on.
+4. Spawn `metadev:teresa` for the test plan (skip only when Paula marked QA as not required).
+5. Run the `design-review` skill on `design.md`. Send failures back to Alex by continuing the same agent, not a new one. If the scope or complexity check fails badly, take it to the owner.
 
 The owner is told the key decisions and does not gate this checkpoint unless Alex or the review raised something risky or expensive.
 
@@ -67,9 +69,13 @@ Run the `deliver` workflow with the Workflow tool (`name: "metadev:deliver"`; if
   ],
   "parallel": false,
   "qa": true,
+  "designReview": false,
+  "security": false,
   "maxFixRounds": 2
 }
 ```
+
+Set `designReview: true` when Vera wrote a design spec in Phase 2: Teresa saves screenshots, Vera compares the build with her spec once QA finds no Critical issue, and differences that stop or mislead the user go through the fix loop. Set `security: true` when the mandate is security-relevant: Sasha reviews the diff alongside the other reviewers and her confirmed Critical and High findings are fixed before QA.
 
 Set `parallel: true` only when Alex marked the workstreams parallel-safe. Parallel builders each work in their own git worktree on a branch named `<branch>--<agent>-<n>`, and a merge step brings them onto the mandate branch before review. A fresh worktree has no installed dependencies or local environment files, so each builder sets those up again; for small workstreams, running in sequence is cheaper. For a one-builder mandate, or if the owner prefers not to run a workflow, do the same steps by hand with single agents in the same order; `references/orchestration.md` has the briefs.
 
@@ -81,9 +87,9 @@ When it returns, read `outcome` first:
 - **High-risk delivery** (Teresa's classification), or any production migration, environment or domain change: show the owner the QA verdict and what Marco will run, and wait for acceptance.
 - **Low-risk and passed**: continue.
 
-Whatever the outcome, report these to the owner and put them in the backlog; the workflow does not fix them: `otherIssues` (Medium and Low findings from review and QA), `reviewUnconfirmed` (blocking review findings that verification did not confirm, each with the reason) and `reviewIncomplete` (a review lens that did not run, so the diff was not reviewed for it). With `qa: false`, the fixes listed in `reviewFixed` were made but nobody tested them. After a parallel run, remove the workstream worktrees and branches listed in `workstreamBranches` once the mandate branch is confirmed (`git worktree list`).
+Whatever the outcome, report these to the owner and put them in the backlog; the workflow does not fix them: `otherIssues` (Medium and Low findings from review and QA), `reviewUnconfirmed` (blocking review findings that verification did not confirm, each with the reason) and `reviewIncomplete` (a review lens that did not run, so the diff was not reviewed for it). If `securityReview` or `designReview` is `did-not-run`, spawn that role by hand before deployment. Commit the reports Sasha and Vera wrote under `docs/security/` and `docs/design/` on the mandate branch. With `qa: false`, the fixes listed in `reviewFixed` were made but nobody tested them. After a parallel run, remove the workstream worktrees and branches listed in `workstreamBranches` once the mandate branch is confirmed (`git worktree list`).
 
-Then spawn `metadev:marco` to deploy and verify, telling him explicitly whether production changes are approved. Spawn `metadev:sasha` first if the mandate touches auth, payments or personal data. Open the pull request when Marco's verification passes; the owner reviews the diff.
+Then spawn `metadev:marco` to deploy and verify, telling him explicitly whether production changes are approved. Sasha has already reviewed a security-relevant mandate twice by this point (the design, then the diff); spawn her again before deployment only for a major release, with scope "full review". Open the pull request when Marco's verification passes; the owner reviews the diff.
 
 ## Phase 4: Retrospective
 
